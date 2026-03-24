@@ -145,6 +145,8 @@ def test_tools_list(mcp_client: httpx.Client) -> None:
         "configure_light",
         # camera
         "set_active_camera", "look_at",
+        # world
+        "set_world_settings",
     }
     missing = expected - tool_names
     assert not missing, f"Missing tools: {missing}"
@@ -598,3 +600,16 @@ def test_camera_look_at_and_active(mcp_client: httpx.Client) -> None:
 
     finally:
         call_tool(mcp_client, "delete_objects", {"names": [cam_name]})
+
+
+@pytest.mark.e2e
+def test_world_settings(mcp_client: httpx.Client) -> None:
+    """set_world_settings updates background color and strength."""
+    result = call_tool(mcp_client, "set_world_settings", {
+        "background_color": [0.1, 0.1, 0.1, 1.0],
+        "strength": 0.8,
+    })
+    assert "error" not in result, f"set_world_settings failed: {result}"
+    assert "background_color" in result
+    assert "strength" in result
+    assert result.get("strength") == pytest.approx(0.8)

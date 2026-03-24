@@ -621,3 +621,30 @@ async def test_look_at_invalid_target(
     result = await call(mcp, "look_at", name="Camera", target=[0.0, 0.0])
     assert is_error(result)
     assert "3 components" in result["error"].lower()
+
+
+# ---------------------------------------------------------------------------
+# world tools
+# ---------------------------------------------------------------------------
+
+
+async def test_set_world_settings_no_params(mock_bridge: MagicMock) -> None:
+    from blender_addon.tools import world
+
+    mcp = make_mcp()
+    world.register(mcp)
+    result = await call(mcp, "set_world_settings")
+    assert is_error(result)
+    assert "at least one" in result["error"].lower()
+
+
+async def test_set_world_settings_invalid_color(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    from blender_addon.tools import world
+
+    mcp = make_mcp()
+    world.register(mcp)
+    result = await call(mcp, "set_world_settings", background_color=[1.0, 0.0, 0.0])
+    assert is_error(result)
+    assert "4 components" in result["error"].lower()

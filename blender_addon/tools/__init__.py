@@ -5,11 +5,24 @@ the shared FastMCP server instance.
 
 from __future__ import annotations
 
-from . import animation, camera, lighting, materials, modifiers, nodes, objects, render, scene
+from . import (
+    animation,
+    camera,
+    lighting,
+    materials,
+    modifiers,
+    nodes,
+    objects,
+    render,
+    scene,
+    world,
+)
 
 
 def register_all(mcp) -> None:
     """Register all tool modules onto the given FastMCP instance."""
-    modules = [scene, objects, materials, render, nodes, modifiers, animation, lighting, camera]
+    modules = [
+        scene, objects, materials, render, nodes, modifiers, animation, lighting, camera, world,
+    ]
     for module in modules:
         module.register(mcp)

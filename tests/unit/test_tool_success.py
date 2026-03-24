@@ -748,3 +748,31 @@ async def test_look_at_success(mock_bridge: MagicMock, mock_bpy: MagicMock) -> N
     assert result["name"] == "Camera"
     assert result["target"] == [0.0, 0.0, 0.0]
     assert "rotation_euler" in result
+
+
+# ---------------------------------------------------------------------------
+# world tools — success paths
+# ---------------------------------------------------------------------------
+
+
+async def test_set_world_settings_success(mock_bridge: MagicMock, mock_bpy: MagicMock) -> None:
+    color_input = MagicMock()
+    color_input.default_value = [0.05, 0.05, 0.05, 1.0]
+    strength_input = MagicMock()
+    strength_input.default_value = 1.0
+    bg_node = MagicMock()
+    bg_node.inputs = {"Color": color_input, "Strength": strength_input}
+    node_tree = MagicMock()
+    node_tree.nodes.get.return_value = bg_node
+    world_mock = MagicMock()
+    world_mock.node_tree = node_tree
+    mock_bpy.context.scene.world = world_mock
+
+    from blender_addon.tools import world
+
+    mcp = make_mcp()
+    world.register(mcp)
+    result = await call(mcp, "set_world_settings",
+                        background_color=[0.1, 0.1, 0.1, 1.0], strength=0.8)
+    assert "background_color" in result
+    assert "strength" in result
