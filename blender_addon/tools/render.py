@@ -4,7 +4,6 @@ Render tools: configure render settings, render to file, capture viewport screen
 
 from __future__ import annotations
 
-import json
 import logging
 
 # bpy is imported inside closures to avoid import-time errors in non-Blender environments

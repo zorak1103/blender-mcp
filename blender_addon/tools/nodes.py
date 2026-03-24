@@ -4,7 +4,6 @@ Shader node graph tools: list, add, connect, remove nodes, set node input values
 
 from __future__ import annotations
 
-import json
 import logging
 
 # bpy is imported inside closures to avoid import-time errors in non-Blender environments

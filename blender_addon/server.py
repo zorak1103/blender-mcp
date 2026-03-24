@@ -27,7 +27,7 @@ def setup(port: int = 8400) -> None:
     global mcp, PORT
 
     PORT = port
-    mcp = FastMCP("blender-mcp")
+    mcp = FastMCP("blender-mcp", host="127.0.0.1", port=port)
     register_all(mcp)
     logger.info("MCP server configured on port %d", port)
 
@@ -40,7 +40,7 @@ def start() -> None:
         raise RuntimeError("Call setup() before start()")
 
     def _run() -> None:
-        mcp.run(transport="streamable-http", host="localhost", port=PORT)  # type: ignore[union-attr]
+        mcp.run(transport="streamable-http")  # type: ignore[union-attr]
 
     _server_thread = threading.Thread(target=_run, daemon=True, name="mcp-server")
     _server_thread.start()

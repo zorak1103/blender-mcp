@@ -20,7 +20,8 @@ logger = logging.getLogger(__name__)
 
 
 class MainThreadBridge:
-    """Singleton bridge that dispatches callables from background threads to Blender's main thread."""
+    """Singleton bridge that dispatches callables from background threads to Blender's main thread.
+    """
 
     def __init__(self) -> None:
         self._queue: queue.Queue[tuple[Callable[[], Any], concurrent.futures.Future[Any]]] = (

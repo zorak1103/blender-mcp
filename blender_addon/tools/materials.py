@@ -4,7 +4,6 @@ Material tools: create materials, assign to objects, list materials, set Princip
 
 from __future__ import annotations
 
-import json
 import logging
 
 # bpy is imported inside closures to avoid import-time errors in non-Blender environments

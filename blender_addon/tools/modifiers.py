@@ -4,7 +4,6 @@ Modifier stack tools: add, configure, apply, remove modifiers, list modifier sta
 
 from __future__ import annotations
 
-import json
 import logging
 
 # bpy is imported inside closures to avoid import-time errors in non-Blender environments
