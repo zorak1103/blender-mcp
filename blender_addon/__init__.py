@@ -37,8 +37,26 @@ class BlenderMCPPreferences(bpy.types.AddonPreferences):
         max=65535,
     )
 
-    def draw(self, context: bpy.types.Context) -> None:
+    allow_execute_python: bpy.props.BoolProperty(  # type: ignore[assignment]
+        name="Allow execute_python Tool (DANGEROUS)",
+        description=(
+            "WARNING: Enables the execute_python MCP tool, which lets connected "
+            "AI clients run ARBITRARY Python code inside Blender with full system "
+            "access. This is a severe security risk. Only enable if you trust ALL "
+            "connected MCP clients. Use at your own risk!"
+        ),
+        default=False,
+    )
+
+    def draw(self, context: bpy.types.Context) -> None:  # pragma: no cover  # Blender UI only
         self.layout.prop(self, "port")
+        box = self.layout.box()
+        box.alert = True
+        col = box.column(align=True)
+        col.label(text="SECURITY WARNING", icon="ERROR")
+        col.label(text="execute_python allows AI clients to run arbitrary code.")
+        col.label(text="Only enable if you trust ALL connected clients.")
+        col.prop(self, "allow_execute_python")
 
 
 def register() -> None:
@@ -46,11 +64,12 @@ def register() -> None:
 
     prefs = bpy.context.preferences.addons[__name__].preferences
     port: int = prefs.port  # type: ignore[assignment]
+    allow_execute_python: bool = prefs.allow_execute_python  # type: ignore[assignment]
 
     bridge_module.bridge = bridge_module.MainThreadBridge()
     bridge_module.bridge.start()
 
-    server_module.setup(port=port)
+    server_module.setup(port=port, allow_execute_python=allow_execute_python)
     server_module.start()
 
     logger.info("Blender MCP Server registered, port=%d", port)

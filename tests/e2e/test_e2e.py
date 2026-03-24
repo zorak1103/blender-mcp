@@ -147,6 +147,8 @@ def test_tools_list(mcp_client: httpx.Client) -> None:
         "set_active_camera", "look_at",
         # world
         "set_world_settings",
+        # scripting (opt-in, requires allow_execute_python=True in preferences)
+        "execute_python",
     }
     missing = expected - tool_names
     assert not missing, f"Missing tools: {missing}"
@@ -613,3 +615,14 @@ def test_world_settings(mcp_client: httpx.Client) -> None:
     assert "background_color" in result
     assert "strength" in result
     assert result.get("strength") == pytest.approx(0.8)
+
+
+@pytest.mark.e2e
+def test_execute_python(mcp_client: httpx.Client) -> None:
+    """execute_python runs arbitrary bpy code and returns __result__."""
+    result = call_tool(mcp_client, "execute_python", {
+        "code": "__result__ = [obj.name for obj in bpy.data.objects]",
+    })
+    assert "error" not in result, f"execute_python failed: {result}"
+    assert result.get("status") == "ok"
+    assert isinstance(result.get("result"), list)

@@ -245,6 +245,83 @@ async def test_parent_objects_success(mock_bridge: MagicMock, mock_bpy: MagicMoc
     assert result["parent"] == "Parent"
 
 
+async def test_transform_object_with_rotation_scale(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    obj = MagicMock()
+    obj.name = "Cube"
+    obj.location = [0.0, 0.0, 0.0]
+    obj.rotation_euler = [0.0, 0.0, 0.0]
+    obj.scale = [1.0, 1.0, 1.0]
+    mock_bpy.data.objects.get.return_value = obj
+
+    from blender_addon.tools import objects
+
+    mcp = make_mcp()
+    objects.register(mcp)
+    result = await call(mcp, "transform_object", name="Cube",
+                        rotation=[0.1, 0.2, 0.3], scale=[2.0, 2.0, 2.0])
+    assert "name" in result
+    assert "rotation_euler" in result
+    assert "scale" in result
+
+
+async def test_create_object_grid_success(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    active_obj = MagicMock()
+    active_obj.name = ""
+    mock_bpy.context.active_object = active_obj
+
+    from blender_addon.tools import objects
+
+    mcp = make_mcp()
+    objects.register(mcp)
+    result = await call(mcp, "create_object_grid",
+                        type="MESH_CUBE", name_prefix="G", count=[2, 2, 1])
+    assert result["count"] == 4
+    assert result["grid"] == [2, 2, 1]
+    assert len(result["created"]) == 4
+
+
+async def test_create_objects_batch_success(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    active_obj = MagicMock()
+    active_obj.name = ""
+    mock_bpy.context.active_object = active_obj
+
+    from blender_addon.tools import objects
+
+    mcp = make_mcp()
+    objects.register(mcp)
+    result = await call(mcp, "create_objects_batch", objects=[
+        {"type": "MESH_CUBE", "name": "A"},
+        {"type": "MESH_SPHERE", "name": "B"},
+    ])
+    assert result["count"] == 2
+    assert result["errors"] == []
+
+
+async def test_create_objects_batch_partial_failure(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    active_obj = MagicMock()
+    active_obj.name = ""
+    mock_bpy.context.active_object = active_obj
+
+    from blender_addon.tools import objects
+
+    mcp = make_mcp()
+    objects.register(mcp)
+    result = await call(mcp, "create_objects_batch", objects=[
+        {"type": "INVALID", "name": "Bad"},
+        {"type": "MESH_CUBE", "name": "Good"},
+    ])
+    assert result["count"] == 1
+    assert len(result["errors"]) == 1
+
+
 # ---------------------------------------------------------------------------
 # materials tools — success paths
 # ---------------------------------------------------------------------------
@@ -312,6 +389,108 @@ async def test_set_material_property_roughness(mock_bridge: MagicMock, mock_bpy:
                         material_name="Mat", prop="roughness", value=0.5)
     assert result["property"] == "roughness"
     assert result["value"] == 0.5
+
+
+async def test_set_material_property_color(mock_bridge: MagicMock, mock_bpy: MagicMock) -> None:
+    socket = MagicMock()
+    bsdf = MagicMock()
+    bsdf.inputs.get.return_value = socket
+    mat = MagicMock()
+    mat.use_nodes = True
+    mat.node_tree.nodes.get.return_value = bsdf
+    mock_bpy.data.materials.get.return_value = mat
+
+    from blender_addon.tools import materials
+
+    mcp = make_mcp()
+    materials.register(mcp)
+    result = await call(mcp, "set_material_property",
+                        material_name="Mat", prop="base_color", value=[1.0, 0.0, 0.0, 1.0])
+    assert result["property"] == "base_color"
+
+
+async def test_assign_material_replace_slot(mock_bridge: MagicMock, mock_bpy: MagicMock) -> None:
+    mat = MagicMock()
+    obj = MagicMock()
+    obj.data.materials = [MagicMock()]  # existing slot → triggers replace path
+    mock_bpy.data.objects.get.return_value = obj
+    mock_bpy.data.materials.get.return_value = mat
+
+    from blender_addon.tools import materials
+
+    mcp = make_mcp()
+    materials.register(mcp)
+    result = await call(mcp, "assign_material",
+                        object_name="Cube", material_name="RedMat")
+    assert result["object"] == "Cube"
+    assert result["material"] == "RedMat"
+
+
+async def test_assign_materials_batch_success(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    mat = MagicMock()
+    obj = MagicMock()
+    obj.data.materials = []
+    mock_bpy.data.objects.get.return_value = obj
+    mock_bpy.data.materials.get.return_value = mat
+
+    from blender_addon.tools import materials
+
+    mcp = make_mcp()
+    materials.register(mcp)
+    result = await call(mcp, "assign_materials_batch", assignments=[
+        {"object_name": "Cube", "material_name": "Mat"},
+        {"object_name": "Sphere", "material_name": "Mat"},
+    ])
+    assert result["count"] == 2
+    assert result["errors"] == []
+
+
+async def test_assign_materials_batch_partial_failure(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    mat = MagicMock()
+    obj = MagicMock()
+    obj.data.materials = []
+    mock_bpy.data.objects.get.side_effect = (
+        lambda n: obj if n == "Cube" else None
+    )
+    mock_bpy.data.materials.get.return_value = mat
+
+    from blender_addon.tools import materials
+
+    mcp = make_mcp()
+    materials.register(mcp)
+    result = await call(mcp, "assign_materials_batch", assignments=[
+        {"object_name": "Missing", "material_name": "Mat"},
+        {"object_name": "Cube", "material_name": "Mat"},
+    ])
+    assert result["count"] == 1
+    assert len(result["errors"]) == 1
+
+
+async def test_create_material_with_properties(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    input_metallic = MagicMock()
+    input_roughness = MagicMock()
+    bsdf = MagicMock()
+    bsdf.inputs.__getitem__ = lambda self, k: (
+        input_metallic if k == "Metallic" else input_roughness
+    )
+    mat = MagicMock()
+    mat.name = "MetalMat"
+    mat.node_tree.nodes.get.return_value = bsdf
+    mock_bpy.data.materials.new.return_value = mat
+
+    from blender_addon.tools import materials
+
+    mcp = make_mcp()
+    materials.register(mcp)
+    result = await call(mcp, "create_material", name="MetalMat",
+                        properties={"metallic": 0.9, "roughness": 0.1})
+    assert result["name"] == "MetalMat"
 
 
 # ---------------------------------------------------------------------------
@@ -776,3 +955,39 @@ async def test_set_world_settings_success(mock_bridge: MagicMock, mock_bpy: Magi
                         background_color=[0.1, 0.1, 0.1, 1.0], strength=0.8)
     assert "background_color" in result
     assert "strength" in result
+
+
+# ---------------------------------------------------------------------------
+# scripting tools — success paths
+# ---------------------------------------------------------------------------
+
+
+async def test_execute_python_success(mock_bridge: MagicMock) -> None:
+    from blender_addon.tools import scripting
+
+    mcp = make_mcp()
+    scripting.register(mcp)
+    result = await call(mcp, "execute_python", code="__result__ = 42")
+    assert result.get("status") == "ok"
+    assert result.get("result") == 42
+
+
+async def test_execute_python_no_result(mock_bridge: MagicMock) -> None:
+    from blender_addon.tools import scripting
+
+    mcp = make_mcp()
+    scripting.register(mcp)
+    result = await call(mcp, "execute_python", code="x = 1 + 1")
+    assert result.get("status") == "ok"
+    assert result.get("result") is None
+
+
+async def test_execute_python_runtime_error(mock_bridge: MagicMock) -> None:
+    from blender_addon.tools import scripting
+
+    mcp = make_mcp()
+    scripting.register(mcp)
+    result = await call(mcp, "execute_python", code="raise ValueError('oops')")
+    assert "error" in result
+    assert "oops" in result["error"]
+    assert "traceback" in result

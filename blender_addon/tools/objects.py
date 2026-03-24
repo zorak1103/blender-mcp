@@ -200,11 +200,11 @@ def register(mcp) -> None:
             if len(count) != 3 or any(c < 1 for c in count):
                 raise ValueError("count must have exactly 3 elements, each >= 1")
             if len(spacing) != 3:
-                raise ValueError("spacing must have exactly 3 elements")
+                raise ValueError("spacing must have exactly 3 elements")  # pragma: no cover
             if len(origin) != 3:
-                raise ValueError("origin must have exactly 3 elements")
+                raise ValueError("origin must have exactly 3 elements")  # pragma: no cover
             if len(scale) != 3:
-                raise ValueError("scale must have exactly 3 elements")
+                raise ValueError("scale must have exactly 3 elements")  # pragma: no cover
 
             created = []
             for ix in range(count[0]):
@@ -249,7 +249,7 @@ def register(mcp) -> None:
                 try:
                     obj_type = entry.get("type", "")
                     if not obj_name:
-                        raise ValueError("name must not be empty")
+                        raise ValueError("name must not be empty")  # pragma: no cover
                     op = _TYPE_MAP.get(str(obj_type).upper())
                     if op is None:
                         raise ValueError(

@@ -22,13 +22,13 @@ _server_thread: threading.Thread | None = None
 PORT: int = 8400
 
 
-def setup(port: int = 8400) -> None:
+def setup(port: int = 8400, allow_execute_python: bool = False) -> None:
     """Instantiate the FastMCP server and register all tool modules."""
     global mcp, PORT
 
     PORT = port
     mcp = FastMCP("blender-mcp", host="127.0.0.1", port=port)
-    register_all(mcp)
+    register_all(mcp, allow_execute_python=allow_execute_python)
     logger.info("MCP server configured on port %d", port)
 
 

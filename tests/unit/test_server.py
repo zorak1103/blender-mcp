@@ -28,7 +28,7 @@ def test_setup_calls_register_all() -> None:
     with patch("blender_addon.server.FastMCP", return_value=mock_mcp):
         with patch("blender_addon.server.register_all") as mock_reg:
             server_mod.setup(port=9000)
-            mock_reg.assert_called_once_with(mock_mcp)
+            mock_reg.assert_called_once_with(mock_mcp, allow_execute_python=False)
 
 
 def test_start_raises_if_setup_not_called() -> None:
@@ -95,6 +95,7 @@ def test_register_initialises_bridge_and_starts_server(mock_bpy: MagicMock) -> N
     mock_bridge_inst = MagicMock()
     prefs = MagicMock()
     prefs.port = 8400
+    prefs.allow_execute_python = False
     mock_bpy.context.preferences.addons.__getitem__.return_value.preferences = prefs
 
     with patch.object(bridge_mod, "MainThreadBridge", return_value=mock_bridge_inst):
@@ -103,7 +104,7 @@ def test_register_initialises_bridge_and_starts_server(mock_bpy: MagicMock) -> N
                 blender_addon.register()
 
     mock_bridge_inst.start.assert_called_once()
-    mock_setup.assert_called_once_with(port=8400)
+    mock_setup.assert_called_once_with(port=8400, allow_execute_python=False)
     mock_start.assert_called_once()
     assert bridge_mod.bridge is mock_bridge_inst
 

@@ -108,6 +108,158 @@ async def test_create_object_wrong_location_length(mock_bridge: MagicMock) -> No
     assert "3" in result["error"]
 
 
+async def test_transform_object_empty_name(mock_bridge: MagicMock) -> None:
+    from blender_addon.tools import objects
+
+    mcp = make_mcp()
+    objects.register(mcp)
+    result = await call(mcp, "transform_object", name="")
+    assert is_error(result)
+    assert "empty" in result["error"].lower()
+
+
+async def test_transform_object_not_found(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    from blender_addon.tools import objects
+
+    mock_bpy.data.objects.get.return_value = None
+    mcp = make_mcp()
+    objects.register(mcp)
+    result = await call(mcp, "transform_object", name="Missing")
+    assert is_error(result)
+    assert "not found" in result["error"].lower()
+
+
+async def test_duplicate_object_empty_name(mock_bridge: MagicMock) -> None:
+    from blender_addon.tools import objects
+
+    mcp = make_mcp()
+    objects.register(mcp)
+    result = await call(mcp, "duplicate_object", name="")
+    assert is_error(result)
+    assert "empty" in result["error"].lower()
+
+
+async def test_duplicate_object_not_found(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    from blender_addon.tools import objects
+
+    mock_bpy.data.objects.get.return_value = None
+    mcp = make_mcp()
+    objects.register(mcp)
+    result = await call(mcp, "duplicate_object", name="Missing")
+    assert is_error(result)
+    assert "not found" in result["error"].lower()
+
+
+async def test_parent_objects_empty_names(mock_bridge: MagicMock) -> None:
+    from blender_addon.tools import objects
+
+    mcp = make_mcp()
+    objects.register(mcp)
+    result = await call(mcp, "parent_objects", child_name="", parent_name="Parent")
+    assert is_error(result)
+    assert "empty" in result["error"].lower()
+
+
+async def test_parent_objects_child_not_found(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    from blender_addon.tools import objects
+
+    mock_bpy.data.objects.get.return_value = None
+    mcp = make_mcp()
+    objects.register(mcp)
+    result = await call(mcp, "parent_objects", child_name="Child", parent_name="Parent")
+    assert is_error(result)
+    assert "child" in result["error"].lower()
+
+
+async def test_parent_objects_parent_not_found(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    from blender_addon.tools import objects
+
+    child = MagicMock()
+    mock_bpy.data.objects.get.side_effect = (
+        lambda n: child if n == "Child" else None
+    )
+    mcp = make_mcp()
+    objects.register(mcp)
+    result = await call(mcp, "parent_objects", child_name="Child", parent_name="Missing")
+    mock_bpy.data.objects.get.side_effect = None  # prevent leak to subsequent tests
+    assert is_error(result)
+    assert "not found" in result["error"].lower()
+
+
+async def test_create_object_grid_invalid_type(mock_bridge: MagicMock) -> None:
+    from blender_addon.tools import objects
+
+    mcp = make_mcp()
+    objects.register(mcp)
+    result = await call(mcp, "create_object_grid",
+                        type="INVALID", name_prefix="Grid", count=[2, 2, 1])
+    assert is_error(result)
+    assert "unknown type" in result["error"].lower()
+
+
+async def test_create_object_grid_empty_prefix(mock_bridge: MagicMock) -> None:
+    from blender_addon.tools import objects
+
+    mcp = make_mcp()
+    objects.register(mcp)
+    result = await call(mcp, "create_object_grid",
+                        type="MESH_CUBE", name_prefix="", count=[2, 2, 1])
+    assert is_error(result)
+    assert "empty" in result["error"].lower()
+
+
+async def test_create_object_grid_invalid_count(mock_bridge: MagicMock) -> None:
+    from blender_addon.tools import objects
+
+    mcp = make_mcp()
+    objects.register(mcp)
+    result = await call(mcp, "create_object_grid",
+                        type="MESH_CUBE", name_prefix="G", count=[2, 2])
+    assert is_error(result)
+    assert "count" in result["error"].lower()
+
+
+async def test_create_object_grid_count_zero(mock_bridge: MagicMock) -> None:
+    from blender_addon.tools import objects
+
+    mcp = make_mcp()
+    objects.register(mcp)
+    result = await call(mcp, "create_object_grid",
+                        type="MESH_CUBE", name_prefix="G", count=[2, 0, 1])
+    assert is_error(result)
+    assert "count" in result["error"].lower()
+
+
+async def test_create_objects_batch_empty_list(mock_bridge: MagicMock) -> None:
+    from blender_addon.tools import objects
+
+    mcp = make_mcp()
+    objects.register(mcp)
+    result = await call(mcp, "create_objects_batch", objects=[])
+    assert is_error(result)
+    assert "empty" in result["error"].lower()
+
+
+async def test_create_objects_batch_missing_type(mock_bridge: MagicMock) -> None:
+    from blender_addon.tools import objects
+
+    mcp = make_mcp()
+    objects.register(mcp)
+    result = await call(mcp, "create_objects_batch",
+                        objects=[{"name": "Obj", "type": "INVALID_TYPE"}])
+    # batch records errors per-entry, does not raise globally
+    assert result.get("count") == 0
+    assert len(result.get("errors", [])) == 1
+
+
 # ---------------------------------------------------------------------------
 # materials tools
 # ---------------------------------------------------------------------------
@@ -445,6 +597,179 @@ async def test_assign_material_object_no_material_support(
     assert is_error(result)
 
 
+async def test_assign_material_empty_object_name(mock_bridge: MagicMock) -> None:
+    from blender_addon.tools import materials
+
+    mcp = make_mcp()
+    materials.register(mcp)
+    result = await call(mcp, "assign_material", object_name="", material_name="Mat")
+    assert is_error(result)
+    assert "empty" in result["error"].lower()
+
+
+async def test_assign_material_empty_material_name(mock_bridge: MagicMock) -> None:
+    from blender_addon.tools import materials
+
+    mcp = make_mcp()
+    materials.register(mcp)
+    result = await call(mcp, "assign_material", object_name="Cube", material_name="")
+    assert is_error(result)
+    assert "empty" in result["error"].lower()
+
+
+async def test_assign_material_object_not_found(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    from blender_addon.tools import materials
+
+    mock_bpy.data.objects.get.return_value = None
+    mcp = make_mcp()
+    materials.register(mcp)
+    result = await call(mcp, "assign_material",
+                        object_name="Missing", material_name="Mat")
+    assert is_error(result)
+    assert "not found" in result["error"].lower()
+
+
+async def test_assign_material_material_not_found(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    from blender_addon.tools import materials
+
+    obj = MagicMock()
+    mock_bpy.data.objects.get.return_value = obj
+    mock_bpy.data.materials.get.return_value = None
+    mcp = make_mcp()
+    materials.register(mcp)
+    result = await call(mcp, "assign_material",
+                        object_name="Cube", material_name="Missing")
+    assert is_error(result)
+    assert "not found" in result["error"].lower()
+
+
+async def test_assign_materials_batch_empty(mock_bridge: MagicMock) -> None:
+    from blender_addon.tools import materials
+
+    mcp = make_mcp()
+    materials.register(mcp)
+    result = await call(mcp, "assign_materials_batch", assignments=[])
+    assert is_error(result)
+    assert "empty" in result["error"].lower()
+
+
+async def test_create_material_invalid_property(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    from blender_addon.tools import materials
+
+    mat = MagicMock()
+    mat.name = "Mat"
+    mock_bpy.data.materials.new.return_value = mat
+    mcp = make_mcp()
+    materials.register(mcp)
+    result = await call(mcp, "create_material", name="Mat",
+                        properties={"unknown_prop": 0.5})
+    assert is_error(result)
+    assert "unknown property" in result["error"].lower()
+
+
+async def test_set_material_property_empty_name(mock_bridge: MagicMock) -> None:
+    from blender_addon.tools import materials
+
+    mcp = make_mcp()
+    materials.register(mcp)
+    result = await call(mcp, "set_material_property",
+                        material_name="", prop="roughness", value=0.5)
+    assert is_error(result)
+    assert "empty" in result["error"].lower()
+
+
+async def test_set_material_property_not_found(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    from blender_addon.tools import materials
+
+    mock_bpy.data.materials.get.return_value = None
+    mcp = make_mcp()
+    materials.register(mcp)
+    result = await call(mcp, "set_material_property",
+                        material_name="Missing", prop="roughness", value=0.5)
+    assert is_error(result)
+    assert "not found" in result["error"].lower()
+
+
+async def test_set_material_property_no_nodes(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    from blender_addon.tools import materials
+
+    mat = MagicMock()
+    mat.use_nodes = False
+    mock_bpy.data.materials.get.return_value = mat
+    mcp = make_mcp()
+    materials.register(mcp)
+    result = await call(mcp, "set_material_property",
+                        material_name="Mat", prop="roughness", value=0.5)
+    assert is_error(result)
+    assert "nodes" in result["error"].lower()
+
+
+async def test_set_material_property_no_bsdf(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    from blender_addon.tools import materials
+
+    mat = MagicMock()
+    mat.use_nodes = True
+    mat.node_tree.nodes.get.return_value = None
+    mock_bpy.data.materials.get.return_value = mat
+    mcp = make_mcp()
+    materials.register(mcp)
+    result = await call(mcp, "set_material_property",
+                        material_name="Mat", prop="roughness", value=0.5)
+    assert is_error(result)
+    assert "bsdf" in result["error"].lower()
+
+
+async def test_set_material_property_socket_not_found(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    from blender_addon.tools import materials
+
+    bsdf = MagicMock()
+    bsdf.inputs.get.return_value = None
+    mat = MagicMock()
+    mat.use_nodes = True
+    mat.node_tree.nodes.get.return_value = bsdf
+    mock_bpy.data.materials.get.return_value = mat
+    mcp = make_mcp()
+    materials.register(mcp)
+    result = await call(mcp, "set_material_property",
+                        material_name="Mat", prop="roughness", value=0.5)
+    assert is_error(result)
+    assert "not found" in result["error"].lower()
+
+
+async def test_set_material_property_color_bad_value(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    from blender_addon.tools import materials
+
+    bsdf = MagicMock()
+    bsdf.inputs.get.return_value = MagicMock()
+    mat = MagicMock()
+    mat.use_nodes = True
+    mat.node_tree.nodes.get.return_value = bsdf
+    mock_bpy.data.materials.get.return_value = mat
+    mcp = make_mcp()
+    materials.register(mcp)
+    # base_color is a color prop — must be 4-component
+    result = await call(mcp, "set_material_property",
+                        material_name="Mat", prop="base_color", value=[1.0, 0.0, 0.0])
+    assert is_error(result)
+    assert "4-component" in result["error"].lower()
+
+
 # ---------------------------------------------------------------------------
 # lighting tools
 # ---------------------------------------------------------------------------
@@ -648,3 +973,18 @@ async def test_set_world_settings_invalid_color(
     result = await call(mcp, "set_world_settings", background_color=[1.0, 0.0, 0.0])
     assert is_error(result)
     assert "4 components" in result["error"].lower()
+
+
+# ---------------------------------------------------------------------------
+# scripting tools
+# ---------------------------------------------------------------------------
+
+
+async def test_execute_python_empty_code(mock_bridge: MagicMock) -> None:
+    from blender_addon.tools import scripting
+
+    mcp = make_mcp()
+    scripting.register(mcp)
+    result = await call(mcp, "execute_python", code="")
+    assert is_error(result)
+    assert "non-empty" in result["error"].lower()
