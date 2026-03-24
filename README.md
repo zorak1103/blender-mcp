@@ -179,6 +179,54 @@ echo '{"jsonrpc":"2.0","method":"tools/list","id":1}' | python launcher.py
 > This section is written for LLM agents that need to register this MCP server for themselves
 > autonomously. Follow these steps in order.
 
+### Step 0 — Install prerequisites (if needed)
+
+Skip this step if Blender is already running with the add-on enabled (you can verify in Step 1).
+
+#### 0a — Install `mcp[cli]` into Blender's bundled Python
+
+The add-on runs inside Blender's own Python interpreter, so `mcp[cli]` must be installed there.
+
+**Find Blender's Python executable:**
+
+```bash
+# Windows (PowerShell) — adjust version numbers as needed
+ls "C:\Program Files\Blender Foundation\Blender*\*\python\bin\python.exe" 2>$null
+
+# macOS
+ls /Applications/Blender.app/Contents/Resources/*/python/bin/python3.*
+
+# Linux
+ls ~/blender-*/*/python/bin/python3.*
+```
+
+Alternatively, ask the user for the path if the above finds nothing or finds multiple versions.
+
+**Install `mcp[cli]` once the path is known:**
+
+```bash
+# Replace <blender-python> with the full path found above
+<blender-python> -m pip install "mcp[cli]"
+```
+
+**Verify:**
+
+```bash
+<blender-python> -c "import mcp; print('ok')"
+```
+
+After installation, the user must enable the add-on in Blender:
+**Edit → Preferences → Add-ons → search "Blender MCP Server" → enable checkbox.**
+This step requires user interaction and cannot be automated from the command line.
+
+#### 0b — Install system Python dependencies (stdio fallback only)
+
+Required only if using `launcher.py`. Skip if connecting via HTTP (Option A).
+
+```bash
+pip install httpx "mcp[cli]"
+```
+
 ### Step 1 — Verify Blender is reachable
 
 ```bash
