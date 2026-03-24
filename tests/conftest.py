@@ -54,6 +54,29 @@ def _make_bpy_mock() -> MagicMock:
 if "bpy" not in sys.modules:
     sys.modules["bpy"] = _make_bpy_mock()  # type: ignore[assignment]
 
+# mathutils is Blender-only; stub it so camera.py can be imported and tested.
+if "mathutils" not in sys.modules:
+    _mathutils_mock = MagicMock(name="mathutils")
+
+    class _Vector:
+        """Minimal Vector stub for unit tests."""
+
+        def __init__(self, coords):  # type: ignore[no-untyped-def]
+            self._coords = tuple(coords)
+
+        def __sub__(self, other):  # type: ignore[no-untyped-def]
+            return _Vector(a - b for a, b in zip(self._coords, other._coords))
+
+        def to_track_quat(self, track, up):  # type: ignore[no-untyped-def]
+            _euler = MagicMock()
+            _euler.__iter__ = MagicMock(return_value=iter([0.0, 0.0, 0.0]))
+            quat = MagicMock()
+            quat.to_euler.return_value = _euler
+            return quat
+
+    _mathutils_mock.Vector = _Vector
+    sys.modules["mathutils"] = _mathutils_mock  # type: ignore[assignment]
+
 # mcp is a Blender-side dependency; stub it so server.py can be imported.
 for _mod in ("mcp", "mcp.server", "mcp.server.fastmcp"):
     if _mod not in sys.modules:

@@ -143,6 +143,8 @@ def test_tools_list(mcp_client: httpx.Client) -> None:
         "set_frame_range", "set_current_frame", "set_fps", "insert_keyframe", "delete_keyframe",
         # lighting
         "configure_light",
+        # camera
+        "set_active_camera", "look_at",
     }
     missing = expected - tool_names
     assert not missing, f"Missing tools: {missing}"
@@ -567,3 +569,32 @@ def test_configure_light(mcp_client: httpx.Client) -> None:
 
     finally:
         call_tool(mcp_client, "delete_objects", {"names": [light_name]})
+
+
+@pytest.mark.e2e
+def test_camera_look_at_and_active(mcp_client: httpx.Client) -> None:
+    """set_active_camera sets the scene camera; look_at orients it toward a target."""
+    cam_name = f"{E2E_PREFIX}TestCamera"
+
+    try:
+        call_tool(mcp_client, "create_object", {
+            "type": "CAMERA",
+            "name": cam_name,
+            "location": [5.0, -5.0, 5.0],
+        })
+
+        active_result = call_tool(mcp_client, "set_active_camera", {"name": cam_name})
+        assert "error" not in active_result, f"set_active_camera failed: {active_result}"
+        assert active_result.get("active_camera") == cam_name
+
+        look_result = call_tool(mcp_client, "look_at", {
+            "name": cam_name,
+            "target": [0.0, 0.0, 0.0],
+        })
+        assert "error" not in look_result, f"look_at failed: {look_result}"
+        assert look_result.get("name") == cam_name
+        assert look_result.get("target") == [0.0, 0.0, 0.0]
+        assert "rotation_euler" in look_result
+
+    finally:
+        call_tool(mcp_client, "delete_objects", {"names": [cam_name]})

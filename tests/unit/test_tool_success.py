@@ -708,3 +708,43 @@ async def test_configure_light_success(mock_bridge: MagicMock, mock_bpy: MagicMo
     assert result["name"] == "Sun"
     assert result["energy"] == 1000.0
     assert result["color"] == [1.0, 0.8, 0.6]
+
+
+# ---------------------------------------------------------------------------
+# camera tools — success paths
+# ---------------------------------------------------------------------------
+
+
+async def test_set_active_camera_success(mock_bridge: MagicMock, mock_bpy: MagicMock) -> None:
+    obj = MagicMock()
+    obj.type = "CAMERA"
+    obj.name = "Camera"
+    mock_bpy.data.objects.get.return_value = obj
+
+    from blender_addon.tools import camera
+
+    mcp = make_mcp()
+    camera.register(mcp)
+    result = await call(mcp, "set_active_camera", name="Camera")
+    assert result["active_camera"] == "Camera"
+    assert mock_bpy.context.scene.camera == obj
+
+
+async def test_look_at_success(mock_bridge: MagicMock, mock_bpy: MagicMock) -> None:
+    euler = MagicMock()
+    euler.__iter__ = MagicMock(return_value=iter([0.0, 0.0, 0.0]))
+    obj = MagicMock()
+    obj.name = "Camera"
+    obj.location = MagicMock()
+    obj.location.__sub__ = MagicMock(return_value=MagicMock())
+    obj.rotation_euler = euler
+    mock_bpy.data.objects.get.return_value = obj
+
+    from blender_addon.tools import camera
+
+    mcp = make_mcp()
+    camera.register(mcp)
+    result = await call(mcp, "look_at", name="Camera", target=[0.0, 0.0, 0.0])
+    assert result["name"] == "Camera"
+    assert result["target"] == [0.0, 0.0, 0.0]
+    assert "rotation_euler" in result

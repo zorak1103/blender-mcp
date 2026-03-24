@@ -537,3 +537,87 @@ async def test_configure_light_spot_on_non_spot(
     result = await call(mcp, "configure_light", name="Light", spot_size=1.0)
     assert is_error(result)
     assert "spot" in result["error"].lower()
+
+
+# ---------------------------------------------------------------------------
+# camera tools
+# ---------------------------------------------------------------------------
+
+
+async def test_set_active_camera_empty_name(mock_bridge: MagicMock) -> None:
+    from blender_addon.tools import camera
+
+    mcp = make_mcp()
+    camera.register(mcp)
+    result = await call(mcp, "set_active_camera", name="")
+    assert is_error(result)
+    assert "empty" in result["error"].lower()
+
+
+async def test_set_active_camera_not_found(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    from blender_addon.tools import camera
+
+    mock_bpy.data.objects.get.return_value = None
+
+    mcp = make_mcp()
+    camera.register(mcp)
+    result = await call(mcp, "set_active_camera", name="NoSuchCam")
+    assert is_error(result)
+    assert "not found" in result["error"].lower()
+
+
+async def test_set_active_camera_not_camera(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    from blender_addon.tools import camera
+
+    obj = MagicMock()
+    obj.type = "MESH"
+    mock_bpy.data.objects.get.return_value = obj
+
+    mcp = make_mcp()
+    camera.register(mcp)
+    result = await call(mcp, "set_active_camera", name="Cube")
+    assert is_error(result)
+    assert "not a camera" in result["error"].lower()
+
+
+async def test_look_at_empty_name(mock_bridge: MagicMock) -> None:
+    from blender_addon.tools import camera
+
+    mcp = make_mcp()
+    camera.register(mcp)
+    result = await call(mcp, "look_at", name="", target=[0.0, 0.0, 0.0])
+    assert is_error(result)
+    assert "empty" in result["error"].lower()
+
+
+async def test_look_at_not_found(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    from blender_addon.tools import camera
+
+    mock_bpy.data.objects.get.return_value = None
+
+    mcp = make_mcp()
+    camera.register(mcp)
+    result = await call(mcp, "look_at", name="NoSuchObj", target=[0.0, 0.0, 0.0])
+    assert is_error(result)
+    assert "not found" in result["error"].lower()
+
+
+async def test_look_at_invalid_target(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    from blender_addon.tools import camera
+
+    obj = MagicMock()
+    mock_bpy.data.objects.get.return_value = obj
+
+    mcp = make_mcp()
+    camera.register(mcp)
+    result = await call(mcp, "look_at", name="Camera", target=[0.0, 0.0])
+    assert is_error(result)
+    assert "3 components" in result["error"].lower()
