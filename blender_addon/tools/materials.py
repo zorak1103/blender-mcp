@@ -75,6 +75,54 @@ def register(mcp) -> None:
         return await run_tool("assign_material", _do)
 
     @mcp.tool()
+    async def assign_materials_batch(
+        assignments: list[dict],
+    ) -> str:
+        """Assign materials to multiple objects in a single call.
+
+        Each dict: {"object_name": str, "material_name": str}
+        Per-assignment failures are recorded in "errors" and do not abort the batch.
+        """
+
+        def _do():
+            if not assignments:
+                raise ValueError("assignments list must not be empty")
+
+            assigned = []
+            errors = []
+            for entry in assignments:
+                obj_name = entry.get("object_name", "")
+                mat_name = entry.get("material_name", "")
+                try:
+                    if not obj_name:
+                        raise ValueError("object_name must not be empty")
+                    if not mat_name:
+                        raise ValueError("material_name must not be empty")
+                    obj = bpy.data.objects.get(obj_name)
+                    if obj is None:
+                        raise ValueError(f"Object '{obj_name}' not found")
+                    if obj.data is None or not hasattr(obj.data, "materials"):
+                        raise ValueError(
+                            f"Object '{obj_name}' does not support materials (type: {obj.type})"
+                        )
+                    mat = bpy.data.materials.get(mat_name)
+                    if mat is None:
+                        raise ValueError(f"Material '{mat_name}' not found")
+                    if obj.data.materials:
+                        obj.data.materials[0] = mat
+                    else:
+                        obj.data.materials.append(mat)
+                    assigned.append({"object": obj_name, "material": mat_name})
+                except Exception as exc:
+                    errors.append(
+                        {"object": obj_name or "?", "material": mat_name or "?", "reason": str(exc)}
+                    )
+
+            return {"assigned": assigned, "errors": errors, "count": len(assigned)}
+
+        return await run_tool("assign_materials_batch", _do)
+
+    @mcp.tool()
     async def list_materials() -> str:
         """List all materials in the blend file."""
 
