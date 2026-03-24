@@ -62,8 +62,10 @@ async def test_get_scene_info_nonexistent_scene(
 ) -> None:
     from blender_addon.tools import scene
 
-    mock_bpy.data.scenes.__contains__ = MagicMock(return_value=False)
-    mock_bpy.data.scenes.__getitem__ = MagicMock(side_effect=KeyError("No Scene"))
+    # Use a MagicMock for scenes so we can control __contains__
+    scenes_mock = MagicMock()
+    scenes_mock.__contains__ = MagicMock(return_value=False)
+    mock_bpy.data.scenes = scenes_mock
 
     mcp = make_mcp()
     scene.register(mcp)
@@ -227,3 +229,217 @@ async def test_remove_modifier_empty_modifier_name(mock_bridge: MagicMock) -> No
     result = await call(mcp, "remove_modifier", object_name="Cube", modifier_name="")
     assert is_error(result)
     assert "empty" in result["error"].lower()
+
+
+# ---------------------------------------------------------------------------
+# nodes tools — validation and error branches
+# ---------------------------------------------------------------------------
+
+
+async def test_list_shader_nodes_not_using_nodes(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    from blender_addon.tools import nodes
+
+    mat = MagicMock()
+    mat.use_nodes = False
+    mock_bpy.data.materials.get.return_value = mat
+
+    mcp = make_mcp()
+    nodes.register(mcp)
+    result = await call(mcp, "list_shader_nodes", material_name="Mat")
+    assert is_error(result)
+
+
+async def test_connect_nodes_output_index_out_of_range(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    from blender_addon.tools import nodes
+
+    src = MagicMock()
+    src.outputs = []  # empty — index 0 is out of range
+    dst = MagicMock()
+    nt = MagicMock()
+    nt.nodes.get.side_effect = lambda n: src if n == "A" else dst
+    mat = MagicMock()
+    mat.use_nodes = True
+    mat.node_tree = nt
+    mock_bpy.data.materials.get.return_value = mat
+
+    mcp = make_mcp()
+    nodes.register(mcp)
+    result = await call(mcp, "connect_nodes",
+                        material_name="Mat", from_node="A", from_output="0",
+                        to_node="B", to_input="Color")
+    assert is_error(result)
+    assert "out of range" in result["error"].lower()
+
+
+async def test_connect_nodes_input_index_out_of_range(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    from blender_addon.tools import nodes
+
+    out_socket = MagicMock()
+    src = MagicMock()
+    src.outputs = [out_socket]
+    dst = MagicMock()
+    dst.inputs = []  # empty — index 0 is out of range
+    nt = MagicMock()
+    nt.nodes.get.side_effect = lambda n: src if n == "A" else dst
+    mat = MagicMock()
+    mat.use_nodes = True
+    mat.node_tree = nt
+    mock_bpy.data.materials.get.return_value = mat
+
+    mcp = make_mcp()
+    nodes.register(mcp)
+    result = await call(mcp, "connect_nodes",
+                        material_name="Mat", from_node="A", from_output="0",
+                        to_node="B", to_input="0")
+    assert is_error(result)
+    assert "out of range" in result["error"].lower()
+
+
+async def test_connect_nodes_named_socket_not_found(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    from blender_addon.tools import nodes
+
+    src = MagicMock()
+    src.outputs.get.return_value = None  # named socket not found
+    dst = MagicMock()
+    nt = MagicMock()
+    nt.nodes.get.side_effect = lambda n: src if n == "A" else dst
+    mat = MagicMock()
+    mat.use_nodes = True
+    mat.node_tree = nt
+    mock_bpy.data.materials.get.return_value = mat
+
+    mcp = make_mcp()
+    nodes.register(mcp)
+    result = await call(mcp, "connect_nodes",
+                        material_name="Mat", from_node="A", from_output="NoSuchOutput",
+                        to_node="B", to_input="Color")
+    assert is_error(result)
+
+
+async def test_connect_nodes_named_input_not_found(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    from blender_addon.tools import nodes
+
+    out_socket = MagicMock()
+    src = MagicMock()
+    src.outputs.get.return_value = out_socket
+    dst = MagicMock()
+    dst.inputs.get.return_value = None  # named input not found
+    nt = MagicMock()
+    nt.nodes.get.side_effect = lambda n: src if n == "A" else dst
+    mat = MagicMock()
+    mat.use_nodes = True
+    mat.node_tree = nt
+    mock_bpy.data.materials.get.return_value = mat
+
+    mcp = make_mcp()
+    nodes.register(mcp)
+    result = await call(mcp, "connect_nodes",
+                        material_name="Mat", from_node="A", from_output="Color",
+                        to_node="B", to_input="NoSuchInput")
+    assert is_error(result)
+
+
+async def test_add_shader_node_empty_material(mock_bridge: MagicMock) -> None:
+    from blender_addon.tools import nodes
+
+    mcp = make_mcp()
+    nodes.register(mcp)
+    result = await call(mcp, "add_shader_node", material_name="", node_type="ShaderNodeTexChecker")
+    assert is_error(result)
+
+
+async def test_add_shader_node_empty_node_type(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    from blender_addon.tools import nodes
+
+    mock_bpy.data.materials.get.return_value = MagicMock()
+    mcp = make_mcp()
+    nodes.register(mcp)
+    result = await call(mcp, "add_shader_node", material_name="Mat", node_type="")
+    assert is_error(result)
+
+
+async def test_connect_nodes_src_not_found(mock_bridge: MagicMock, mock_bpy: MagicMock) -> None:
+    from blender_addon.tools import nodes
+
+    nt = MagicMock()
+    nt.nodes.get.return_value = None  # neither src nor dst found
+    mat = MagicMock()
+    mat.use_nodes = True
+    mat.node_tree = nt
+    mock_bpy.data.materials.get.return_value = mat
+
+    mcp = make_mcp()
+    nodes.register(mcp)
+    result = await call(mcp, "connect_nodes",
+                        material_name="Mat", from_node="NoSrc", from_output="Color",
+                        to_node="BSDF", to_input="Base Color")
+    assert is_error(result)
+    assert "not found" in result["error"].lower()
+
+
+async def test_connect_nodes_dst_not_found(mock_bridge: MagicMock, mock_bpy: MagicMock) -> None:
+    from blender_addon.tools import nodes
+
+    src = MagicMock()
+    nt = MagicMock()
+    nt.nodes.get.side_effect = lambda n: src if n == "Src" else None
+    mat = MagicMock()
+    mat.use_nodes = True
+    mat.node_tree = nt
+    mock_bpy.data.materials.get.return_value = mat
+
+    mcp = make_mcp()
+    nodes.register(mcp)
+    result = await call(mcp, "connect_nodes",
+                        material_name="Mat", from_node="Src", from_output="Color",
+                        to_node="NoDst", to_input="Base Color")
+    assert is_error(result)
+    assert "not found" in result["error"].lower()
+
+
+async def test_set_material_property_invalid_prop(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    from blender_addon.tools import materials
+
+    bsdf = MagicMock()
+    mat = MagicMock()
+    mat.use_nodes = True
+    mat.node_tree.nodes.get.return_value = bsdf
+    mock_bpy.data.materials.get.return_value = mat
+
+    mcp = make_mcp()
+    materials.register(mcp)
+    result = await call(mcp, "set_material_property",
+                        material_name="Mat", prop="nonexistent", value=0.5)
+    assert is_error(result)
+    assert "unknown property" in result["error"].lower()
+
+
+async def test_assign_material_object_no_material_support(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    from blender_addon.tools import materials
+
+    obj = MagicMock()
+    obj.type = "CAMERA"
+    obj.data = None  # cameras have no material slots
+    mock_bpy.data.objects.get.return_value = obj
+
+    mcp = make_mcp()
+    materials.register(mcp)
+    result = await call(mcp, "assign_material",
+                        object_name="Camera", material_name="Mat")
+    assert is_error(result)

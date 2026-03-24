@@ -88,3 +88,30 @@ async def test_proxy_request_generic_error_returns_error_json() -> None:
     parsed = json.loads(result)
     assert "error" in parsed
     assert parsed["error"]["code"] == -32000
+
+
+async def test_main_reads_stdin_and_writes_stdout() -> None:
+    """main() proxies one line from stdin to Blender and writes the response to stdout."""
+    import io
+
+    import launcher
+
+    line = b'{"jsonrpc":"2.0","method":"tools/list","id":1}\n'
+    response_bytes = b'{"jsonrpc":"2.0","id":1,"result":{"tools":[]}}'
+
+    stdin_buf = io.BytesIO(line + b"")  # one line then EOF on second read
+
+    def fake_readline() -> bytes:
+        return stdin_buf.read(len(line)) or b""
+
+    stdout_buf = io.BytesIO()
+
+    with patch("launcher.wait_for_blender", new=AsyncMock()):
+        with patch("launcher.proxy_request", new=AsyncMock(return_value=response_bytes)):
+            with patch("sys.stdin", MagicMock(buffer=MagicMock(readline=fake_readline))):
+                with patch("sys.stdout", MagicMock(buffer=stdout_buf)):
+                    await launcher.main()
+
+    stdout_buf.seek(0)
+    written = stdout_buf.read()
+    assert response_bytes in written
