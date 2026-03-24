@@ -131,8 +131,10 @@ def test_tools_list(mcp_client: httpx.Client) -> None:
         # objects
         "create_object", "delete_objects", "transform_object",
         "duplicate_object", "select_objects", "parent_objects",
+        "create_object_grid", "create_objects_batch",
         # materials
-        "create_material", "assign_material", "list_materials", "set_material_property",
+        "create_material", "assign_material", "assign_materials_batch",
+        "list_materials", "set_material_property",
         # render
         "set_render_settings", "render_image", "screenshot_viewport",
         # shader nodes
@@ -626,3 +628,101 @@ def test_execute_python(mcp_client: httpx.Client) -> None:
     assert "error" not in result, f"execute_python failed: {result}"
     assert result.get("status") == "ok"
     assert isinstance(result.get("result"), list)
+
+
+@pytest.mark.e2e
+def test_batch_create_grid(mcp_client: httpx.Client) -> None:
+    """create_object_grid creates a 3-D grid of objects in one call."""
+    prefix = f"{E2E_PREFIX}GRID"
+    created_names: list[str] = []
+
+    try:
+        result = call_tool(mcp_client, "create_object_grid", {
+            "type": "MESH_CUBE",
+            "name_prefix": prefix,
+            "count": [2, 2, 1],
+            "spacing": [3.0, 3.0, 3.0],
+        })
+        assert "error" not in result, f"create_object_grid failed: {result}"
+        assert result.get("count") == 4
+        assert result.get("grid") == [2, 2, 1]
+        created_names = result.get("created", [])
+        assert len(created_names) == 4
+        assert f"{prefix}_0_0_0" in created_names
+        assert f"{prefix}_1_1_0" in created_names
+
+    finally:
+        if created_names:
+            call_tool(mcp_client, "delete_objects", {"names": created_names})
+
+
+@pytest.mark.e2e
+def test_batch_create_objects(mcp_client: httpx.Client) -> None:
+    """create_objects_batch creates multiple objects with different types in one call."""
+    names = [f"{E2E_PREFIX}Batch_Cube", f"{E2E_PREFIX}Batch_Sphere", f"{E2E_PREFIX}Batch_Empty"]
+
+    try:
+        result = call_tool(mcp_client, "create_objects_batch", {
+            "objects": [
+                {"type": "MESH_CUBE", "name": names[0], "location": [0.0, 0.0, 0.0]},
+                {"type": "MESH_SPHERE", "name": names[1], "location": [3.0, 0.0, 0.0]},
+                {"type": "EMPTY", "name": names[2], "location": [6.0, 0.0, 0.0]},
+            ],
+        })
+        assert "error" not in result, f"create_objects_batch failed: {result}"
+        assert result.get("count") == 3
+        assert result.get("errors") == []
+        created = result.get("created", [])
+        for name in names:
+            assert name in created
+
+    finally:
+        call_tool(mcp_client, "delete_objects", {"names": names})
+
+
+@pytest.mark.e2e
+def test_batch_assign_materials(mcp_client: httpx.Client) -> None:
+    """assign_materials_batch assigns materials to multiple objects in one call."""
+    obj_names = [f"{E2E_PREFIX}BMat_Obj1", f"{E2E_PREFIX}BMat_Obj2"]
+    mat_names = [f"{E2E_PREFIX}BMat_Mat1", f"{E2E_PREFIX}BMat_Mat2"]
+
+    try:
+        for obj_name in obj_names:
+            call_tool(mcp_client, "create_object", {"type": "MESH_CUBE", "name": obj_name})
+        for mat_name in mat_names:
+            call_tool(mcp_client, "create_material", {"name": mat_name})
+
+        result = call_tool(mcp_client, "assign_materials_batch", {
+            "assignments": [
+                {"object_name": obj_names[0], "material_name": mat_names[0]},
+                {"object_name": obj_names[1], "material_name": mat_names[1]},
+            ],
+        })
+        assert "error" not in result, f"assign_materials_batch failed: {result}"
+        assert result.get("count") == 2
+        assert result.get("errors") == []
+        assigned = result.get("assigned", [])
+        assert {"object": obj_names[0], "material": mat_names[0]} in assigned
+        assert {"object": obj_names[1], "material": mat_names[1]} in assigned
+
+        # Verify via get_object_info
+        for obj_name, mat_name in zip(obj_names, mat_names):
+            info = call_tool(mcp_client, "get_object_info", {"name": obj_name})
+            assert mat_name in info.get("materials", [])
+
+    finally:
+        call_tool(mcp_client, "delete_objects", {"names": obj_names})
+
+
+@pytest.mark.e2e
+def test_create_material_with_properties(mcp_client: httpx.Client) -> None:
+    """create_material accepts an optional properties dict to set BSDF inputs inline."""
+    mat_name = f"{E2E_PREFIX}PropsMat"
+
+    result = call_tool(mcp_client, "create_material", {
+        "name": mat_name,
+        "color": [0.5, 0.0, 0.8, 1.0],
+        "properties": {"metallic": 0.9, "roughness": 0.1},
+    })
+    assert "error" not in result, f"create_material with properties failed: {result}"
+    assert result.get("name") == mat_name

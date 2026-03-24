@@ -272,7 +272,7 @@ curl -s -X POST http://localhost:8400/mcp \
   -d '{"jsonrpc":"2.0","method":"tools/list","id":2,"params":{}}'
 ```
 
-**Expected:** a list of 32 tools including `list_scenes`, `create_object`, `render_image`, etc.
+**Expected:** a list of 39 tools (or 40 with `execute_python` enabled) including `list_scenes`, `create_object`, `render_image`, etc.
 **If the tool count is wrong:** the add-on version may be outdated — inform the user.
 
 ---
@@ -349,9 +349,13 @@ After editing Python source files, reload the add-on in Blender without restarti
 | Category | Tools |
 |---|---|
 | Scene | `list_scenes`, `get_scene_info`, `list_objects`, `get_object_info` |
-| Objects | `create_object`, `delete_objects`, `transform_object`, `duplicate_object`, `select_objects`, `parent_objects` |
-| Materials | `create_material`, `assign_material`, `list_materials`, `set_material_property` |
+| Objects | `create_object`, `delete_objects`, `transform_object`, `duplicate_object`, `select_objects`, `parent_objects`, `create_object_grid`, `create_objects_batch` |
+| Materials | `create_material`, `assign_material`, `assign_materials_batch`, `list_materials`, `set_material_property` |
 | Render | `set_render_settings`, `render_image`, `screenshot_viewport` |
 | Shader nodes | `list_shader_nodes`, `add_shader_node`, `connect_nodes`, `remove_node`, `set_node_value` |
 | Modifiers | `list_modifiers`, `add_modifier`, `remove_modifier`, `configure_modifier`, `apply_modifier` |
 | Animation | `set_frame_range`, `set_current_frame`, `set_fps`, `insert_keyframe`, `delete_keyframe` |
+| Lighting | `configure_light` |
+| Camera | `set_active_camera`, `look_at` |
+| World | `set_world_settings` |
+| Scripting (opt-in) | `execute_python` — requires enabling in add-on preferences (Edit → Preferences → Add-ons → Blender MCP Server) |
