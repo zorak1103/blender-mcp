@@ -272,7 +272,7 @@ curl -s -X POST http://localhost:8400/mcp \
   -d '{"jsonrpc":"2.0","method":"tools/list","id":2,"params":{}}'
 ```
 
-**Expected:** a list of 39 tools (or 40 with `execute_python` enabled) including `list_scenes`, `create_object`, `render_image`, etc.
+**Expected:** a list of 42 tools (or 43 with `execute_python` enabled) including `list_scenes`, `create_object`, `render_image`, etc.
 **If the tool count is wrong:** the add-on version may be outdated — inform the user.
 
 ---
@@ -353,7 +353,7 @@ After editing Python source files, reload the add-on in Blender without restarti
 | Materials | `create_material`, `assign_material`, `assign_materials_batch`, `list_materials`, `set_material_property` |
 | Render | `set_render_settings`, `render_image`, `screenshot_viewport` |
 | Shader nodes | `list_shader_nodes`, `add_shader_node`, `connect_nodes`, `remove_node`, `set_node_value` |
-| Modifiers | `list_modifiers`, `add_modifier`, `remove_modifier`, `configure_modifier`, `apply_modifier` |
+| Modifiers | `list_modifiers`, `add_modifier`, `remove_modifier`, `configure_modifier`, `apply_modifier`, `add_modifiers_batch`, `apply_modifiers_batch`, `remove_modifiers_batch` |
 | Animation | `set_frame_range`, `set_current_frame`, `set_fps`, `insert_keyframe`, `delete_keyframe` |
 | Lighting | `configure_light` |
 | Camera | `set_active_camera`, `look_at` |
