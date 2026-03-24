@@ -126,26 +126,21 @@ def test_tools_list(mcp_client: httpx.Client) -> None:
     tool_names = {t["name"] for t in tools}
 
     expected = {
-        "list_scenes",
-        "get_scene_info",
-        "list_objects",
-        "get_object_info",
-        "create_object",
-        "delete_objects",
-        "transform_object",
-        "create_material",
-        "assign_material",
-        "list_materials",
-        "render_image",
-        "screenshot_viewport",
-        "list_shader_nodes",
-        "add_shader_node",
-        "add_modifier",
-        "list_modifiers",
-        "apply_modifier",
-        "insert_keyframe",
-        "delete_keyframe",
-        "set_frame_range",
+        # scene
+        "list_scenes", "get_scene_info", "list_objects", "get_object_info",
+        # objects
+        "create_object", "delete_objects", "transform_object",
+        "duplicate_object", "select_objects", "parent_objects",
+        # materials
+        "create_material", "assign_material", "list_materials", "set_material_property",
+        # render
+        "set_render_settings", "render_image", "screenshot_viewport",
+        # shader nodes
+        "list_shader_nodes", "add_shader_node", "connect_nodes", "remove_node", "set_node_value",
+        # modifiers
+        "list_modifiers", "add_modifier", "remove_modifier", "configure_modifier", "apply_modifier",
+        # animation
+        "set_frame_range", "set_current_frame", "set_fps", "insert_keyframe", "delete_keyframe",
     }
     missing = expected - tool_names
     assert not missing, f"Missing tools: {missing}"
@@ -285,3 +280,262 @@ def test_screenshot_viewport(mcp_client: httpx.Client) -> None:
     assert "error" not in result, f"screenshot_viewport failed: {result}"
     assert result.get("filepath") == filepath
     assert result.get("area_type") == "VIEW_3D"
+
+
+@pytest.mark.e2e
+def test_scene_inspection(mcp_client: httpx.Client) -> None:
+    """list_scenes and get_scene_info return valid data for the active scene."""
+    scenes = call_tool(mcp_client, "list_scenes")
+    assert isinstance(scenes, list), f"Expected list, got: {scenes}"
+    assert len(scenes) >= 1
+    first = scenes[0]
+    assert "name" in first
+    assert "object_count" in first
+    assert "frame_start" in first
+
+    info = call_tool(mcp_client, "get_scene_info", {"scene_name": first["name"]})
+    assert "error" not in info, f"get_scene_info failed: {info}"
+    assert info.get("name") == first["name"]
+    assert "objects" in info
+    assert "fps" in info
+    assert "frame_start" in info
+
+
+@pytest.mark.e2e
+def test_object_transform(mcp_client: httpx.Client) -> None:
+    """transform_object updates location, rotation, and scale."""
+    obj_name = f"{E2E_PREFIX}TransformCube"
+
+    try:
+        call_tool(mcp_client, "create_object", {"type": "MESH_CUBE", "name": obj_name})
+
+        result = call_tool(mcp_client, "transform_object", {
+            "name": obj_name,
+            "location": [1.0, 2.0, 3.0],
+            "rotation": [0.1, 0.2, 0.3],
+            "scale": [2.0, 2.0, 2.0],
+        })
+        assert "error" not in result, f"transform_object failed: {result}"
+        assert result.get("location") == [1.0, 2.0, 3.0]
+        assert result.get("scale") == [2.0, 2.0, 2.0]
+
+    finally:
+        call_tool(mcp_client, "delete_objects", {"names": [obj_name]})
+
+
+@pytest.mark.e2e
+def test_object_duplicate_and_select(mcp_client: httpx.Client) -> None:
+    """duplicate_object creates a copy; select_objects selects by name."""
+    obj_name = f"{E2E_PREFIX}DupSource"
+
+    try:
+        call_tool(mcp_client, "create_object", {"type": "MESH_CUBE", "name": obj_name})
+
+        dup = call_tool(mcp_client, "duplicate_object", {"name": obj_name})
+        assert "error" not in dup, f"duplicate_object failed: {dup}"
+        dup_name = dup.get("duplicate")
+        assert dup_name and dup_name != obj_name
+
+        sel = call_tool(mcp_client, "select_objects", {"names": [obj_name]})
+        assert "error" not in sel, f"select_objects failed: {sel}"
+        assert obj_name in sel.get("selected", [])
+        assert sel.get("not_found") == []
+
+    finally:
+        objects = call_tool(mcp_client, "list_objects")
+        names = [o["name"] for o in objects] if isinstance(objects, list) else []
+        to_delete = [n for n in [obj_name, dup.get("duplicate")] if n and n in names]
+        if to_delete:
+            call_tool(mcp_client, "delete_objects", {"names": to_delete})
+
+
+@pytest.mark.e2e
+def test_object_parent(mcp_client: httpx.Client) -> None:
+    """parent_objects sets parent/child relationship."""
+    parent_name = f"{E2E_PREFIX}Parent"
+    child_name = f"{E2E_PREFIX}Child"
+
+    try:
+        call_tool(mcp_client, "create_object", {"type": "MESH_CUBE", "name": parent_name})
+        call_tool(mcp_client, "create_object", {
+            "type": "MESH_SPHERE", "name": child_name, "location": [3.0, 0.0, 0.0],
+        })
+
+        result = call_tool(mcp_client, "parent_objects", {
+            "child_name": child_name,
+            "parent_name": parent_name,
+        })
+        assert "error" not in result, f"parent_objects failed: {result}"
+        assert result.get("child") == child_name
+        assert result.get("parent") == parent_name
+
+        info = call_tool(mcp_client, "get_object_info", {"name": child_name})
+        assert info.get("parent") == parent_name
+
+    finally:
+        call_tool(mcp_client, "delete_objects", {"names": [child_name, parent_name]})
+
+
+@pytest.mark.e2e
+def test_material_list_and_property(mcp_client: httpx.Client) -> None:
+    """list_materials enumerates materials; set_material_property updates BSDF inputs."""
+    mat_name = f"{E2E_PREFIX}PropMat"
+
+    try:
+        call_tool(mcp_client, "create_material", {"name": mat_name, "color": [1.0, 0.0, 0.0, 1.0]})
+
+        materials = call_tool(mcp_client, "list_materials")
+        assert isinstance(materials, list), f"Expected list, got: {materials}"
+        mat_names = [m["name"] for m in materials]
+        assert mat_name in mat_names
+
+        result = call_tool(mcp_client, "set_material_property", {
+            "material_name": mat_name,
+            "prop": "roughness",
+            "value": 0.2,
+        })
+        assert "error" not in result, f"set_material_property failed: {result}"
+        assert result.get("property") == "roughness"
+        assert result.get("value") == 0.2
+
+    finally:
+        # Materials must be removed via bpy; delete the test object is not applicable here.
+        # Leftover test materials are harmless — blend file is not persisted between sessions.
+        pass
+
+
+@pytest.mark.e2e
+def test_render_settings(mcp_client: httpx.Client) -> None:
+    """set_render_settings updates engine and resolution without rendering."""
+    result = call_tool(mcp_client, "set_render_settings", {
+        "engine": "BLENDER_WORKBENCH",
+        "resolution_x": 320,
+        "resolution_y": 240,
+    })
+    assert "error" not in result, f"set_render_settings failed: {result}"
+    assert result.get("engine") == "BLENDER_WORKBENCH"
+    assert result.get("resolution") == [320, 240]
+
+
+@pytest.mark.e2e
+def test_render_image(mcp_client: httpx.Client) -> None:
+    """render_image produces a file at the given path (WORKBENCH, low resolution)."""
+    filepath = "C:/Windows/Temp/e2e_blender_mcp_render.png"
+
+    # Use Workbench at minimal resolution so the render completes quickly.
+    call_tool(mcp_client, "set_render_settings", {
+        "engine": "BLENDER_WORKBENCH",
+        "resolution_x": 64,
+        "resolution_y": 64,
+    })
+
+    result = call_tool(mcp_client, "render_image", {"filepath": filepath})
+    assert "error" not in result, f"render_image failed: {result}"
+    assert result.get("filepath") == filepath
+    assert result.get("format") == "PNG"
+    assert result.get("resolution") == [64, 64]
+
+
+@pytest.mark.e2e
+def test_shader_node_workflow(mcp_client: httpx.Client) -> None:
+    """Full shader node round-trip: list, add, set_value, connect, remove."""
+    mat_name = f"{E2E_PREFIX}NodeMat"
+
+    try:
+        call_tool(mcp_client, "create_material", {"name": mat_name})
+
+        nodes = call_tool(mcp_client, "list_shader_nodes", {"material_name": mat_name})
+        assert isinstance(nodes, list), f"Expected list, got: {nodes}"
+        node_names = [n["name"] for n in nodes]
+        assert "Principled BSDF" in node_names
+
+        # Add a Mix Shader node
+        added = call_tool(mcp_client, "add_shader_node", {
+            "material_name": mat_name,
+            "node_type": "ShaderNodeMixShader",
+            "location": [-200.0, 0.0],
+        })
+        assert "error" not in added, f"add_shader_node failed: {added}"
+        mix_name = added.get("name")
+        assert mix_name
+
+        # Set Fac input on the Mix Shader to 0.5
+        set_val = call_tool(mcp_client, "set_node_value", {
+            "material_name": mat_name,
+            "node_name": mix_name,
+            "input_name": "Fac",
+            "value": 0.5,
+        })
+        assert "error" not in set_val, f"set_node_value failed: {set_val}"
+        assert set_val.get("value") == 0.5
+
+        # Connect Principled BSDF output (index 0) to Mix Shader input (index 1)
+        conn = call_tool(mcp_client, "connect_nodes", {
+            "material_name": mat_name,
+            "from_node": "Principled BSDF",
+            "from_output": "0",
+            "to_node": mix_name,
+            "to_input": "1",
+        })
+        assert "error" not in conn, f"connect_nodes failed: {conn}"
+
+        # Remove the Mix Shader node
+        removed = call_tool(mcp_client, "remove_node", {
+            "material_name": mat_name,
+            "node_name": mix_name,
+        })
+        assert "error" not in removed, f"remove_node failed: {removed}"
+        assert removed.get("removed") == mix_name
+
+    finally:
+        pass  # Materials are ephemeral; no persistent cleanup needed.
+
+
+@pytest.mark.e2e
+def test_modifier_configure_and_apply(mcp_client: httpx.Client) -> None:
+    """configure_modifier updates modifier settings; apply_modifier bakes it."""
+    obj_name = f"{E2E_PREFIX}ConfigMod"
+
+    try:
+        call_tool(mcp_client, "create_object", {"type": "MESH_CUBE", "name": obj_name})
+
+        added = call_tool(mcp_client, "add_modifier", {
+            "object_name": obj_name,
+            "modifier_type": "SUBSURF",
+        })
+        assert "error" not in added, f"add_modifier failed: {added}"
+        mod_name = added.get("name")
+
+        configured = call_tool(mcp_client, "configure_modifier", {
+            "object_name": obj_name,
+            "modifier_name": mod_name,
+            "settings": {"levels": 1},
+        })
+        assert "error" not in configured, f"configure_modifier failed: {configured}"
+        assert "levels" in configured.get("updated", {})
+
+        applied = call_tool(mcp_client, "apply_modifier", {
+            "object_name": obj_name,
+            "modifier_name": mod_name,
+        })
+        assert "error" not in applied, f"apply_modifier failed: {applied}"
+        assert applied.get("applied") == mod_name
+
+        # Modifier must be gone after apply
+        mods = call_tool(mcp_client, "list_modifiers", {"object_name": obj_name})
+        assert mod_name not in [m["name"] for m in mods]
+
+    finally:
+        call_tool(mcp_client, "delete_objects", {"names": [obj_name]})
+
+
+@pytest.mark.e2e
+def test_animation_frame_and_fps(mcp_client: httpx.Client) -> None:
+    """set_current_frame moves the playhead; set_fps updates the scene rate."""
+    frame_result = call_tool(mcp_client, "set_current_frame", {"frame": 42})
+    assert "error" not in frame_result, f"set_current_frame failed: {frame_result}"
+    assert frame_result.get("current_frame") == 42
+
+    fps_result = call_tool(mcp_client, "set_fps", {"fps": 30})
+    assert "error" not in fps_result, f"set_fps failed: {fps_result}"
+    assert fps_result.get("fps") == 30
