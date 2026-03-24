@@ -26,6 +26,9 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 
+# Blender add-on distribution zip (build artifact)
+*.zip
+
 # Blender temp / backup files
 *.blend1
 *.blend2
