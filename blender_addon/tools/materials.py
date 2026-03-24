@@ -30,8 +30,14 @@ def register(mcp) -> None:
     async def create_material(
         name: str,
         color: list[float] = [0.8, 0.8, 0.8, 1.0],  # noqa: B006
+        properties: dict | None = None,
     ) -> str:
-        """Create a new material with a Principled BSDF node set to the given base color (RGBA)."""
+        """Create a new material with a Principled BSDF node set to the given base color (RGBA).
+
+        properties: optional dict of Principled BSDF inputs to set inline,
+            e.g. {"metallic": 0.9, "roughness": 0.1}. Valid keys: base_color,
+            metallic, roughness, emission, alpha.
+        """
 
         def _do():
             if not name:
@@ -43,6 +49,20 @@ def register(mcp) -> None:
             bsdf = mat.node_tree.nodes.get("Principled BSDF")
             if bsdf:
                 bsdf.inputs["Base Color"].default_value = tuple(color)
+            if properties is not None:
+                if bsdf is None:
+                    raise ValueError("No Principled BSDF node found in new material")
+                for prop_key, value in properties.items():
+                    input_name = _PROP_MAP.get(prop_key.lower())
+                    if input_name is None:
+                        valid = ", ".join(_PROP_MAP)
+                        raise ValueError(f"Unknown property '{prop_key}'. Valid: {valid}")
+                    if prop_key.lower() in _COLOR_PROPS:
+                        if not isinstance(value, (list, tuple)) or len(value) != 4:
+                            raise ValueError(
+                                f"Property '{prop_key}' requires 4-component RGBA list"
+                            )
+                    bsdf.inputs[input_name].default_value = value
             return {"name": mat.name}
 
         return await run_tool("create_material", _do)
