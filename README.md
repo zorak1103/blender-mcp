@@ -174,6 +174,66 @@ echo '{"jsonrpc":"2.0","method":"tools/list","id":1}' | python launcher.py
 
 ---
 
+## LLM Self-Configuration
+
+> This section is written for LLM agents that need to register this MCP server for themselves
+> autonomously. Follow these steps in order.
+
+### Step 1 — Verify Blender is reachable
+
+```bash
+curl -s -X POST http://localhost:8400/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","method":"initialize","id":1,"params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"probe","version":"0"}}}'
+```
+
+**Expected:** a response containing `"result"` with `serverInfo.name == "blender-mcp"`.
+**If the request fails or returns an error:** Blender is not running or the add-on is not enabled.
+Inform the user and stop — do not proceed with registration.
+
+### Step 2 — Register the server
+
+Choose the appropriate config location:
+
+| Scope | File | When to use |
+|-------|------|-------------|
+| This project only | `.mcp.json` in repo root | Preferred — already present in this repo |
+| All projects (global) | `~/.claude/settings.json` | When working outside this repo |
+
+The `.mcp.json` file in this repository already contains the correct entry:
+
+```json
+{
+  "mcpServers": {
+    "blender-mcp": {
+      "type": "http",
+      "url": "http://localhost:8400/mcp"
+    }
+  }
+}
+```
+
+If you are registering globally, merge the same `"blender-mcp"` entry into the `"mcpServers"`
+object in `~/.claude/settings.json` (create the object if it does not exist).
+
+### Step 3 — Confirm registration
+
+After writing the config, call `tools/list` to confirm the server responds:
+
+```bash
+curl -s -X POST http://localhost:8400/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "mcp-session-id: <session-id-from-step-1>" \
+  -d '{"jsonrpc":"2.0","method":"tools/list","id":2,"params":{}}'
+```
+
+**Expected:** a list of 32 tools including `list_scenes`, `create_object`, `render_image`, etc.
+**If the tool count is wrong:** the add-on version may be outdated — inform the user.
+
+---
+
 ## Development Setup
 
 For active development, use a symlink instead of reinstalling the zip after every change.
