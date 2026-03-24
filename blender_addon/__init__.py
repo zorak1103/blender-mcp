@@ -26,6 +26,19 @@ bl_info = {
 }
 
 
+def _on_allow_execute_python_update(self, context: bpy.types.Context) -> None:  # pragma: no cover
+    """Dynamically register execute_python on the running server when preference is toggled."""
+    if not self.allow_execute_python:
+        logger.info("execute_python disabled — restart add-on to deregister the tool")
+        return
+    if server_module.mcp is None:
+        return  # server not started yet; register() will handle it
+    from .tools import scripting  # noqa: PLC0415
+
+    scripting.register(server_module.mcp)
+    logger.info("execute_python tool registered at runtime")
+
+
 class BlenderMCPPreferences(bpy.types.AddonPreferences):
     bl_idname = __name__
 
@@ -46,6 +59,7 @@ class BlenderMCPPreferences(bpy.types.AddonPreferences):
             "connected MCP clients. Use at your own risk!"
         ),
         default=False,
+        update=_on_allow_execute_python_update,
     )
 
     def draw(self, context: bpy.types.Context) -> None:  # pragma: no cover  # Blender UI only

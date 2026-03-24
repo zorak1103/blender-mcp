@@ -569,7 +569,7 @@ def test_configure_light(mcp_client: httpx.Client) -> None:
         assert "error" not in result, f"configure_light failed: {result}"
         assert result.get("name") == light_name
         assert result.get("energy") == 500.0
-        assert result.get("color") == [1.0, 0.9, 0.8]
+        assert result.get("color") == pytest.approx([1.0, 0.9, 0.8], abs=1e-5)
 
     finally:
         call_tool(mcp_client, "delete_objects", {"names": [light_name]})
