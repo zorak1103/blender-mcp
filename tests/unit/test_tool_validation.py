@@ -383,6 +383,66 @@ async def test_remove_modifier_empty_modifier_name(mock_bridge: MagicMock) -> No
     assert "empty" in result["error"].lower()
 
 
+async def test_add_modifiers_batch_empty_list(mock_bridge: MagicMock) -> None:
+    from blender_addon.tools import modifiers
+
+    mcp = make_mcp()
+    modifiers.register(mcp)
+    result = await call(mcp, "add_modifiers_batch", object_names=[], modifier_type="SUBSURF")
+    assert is_error(result)
+    assert "empty" in result["error"].lower()
+
+
+async def test_add_modifiers_batch_empty_modifier_type(mock_bridge: MagicMock) -> None:
+    from blender_addon.tools import modifiers
+
+    mcp = make_mcp()
+    modifiers.register(mcp)
+    result = await call(mcp, "add_modifiers_batch", object_names=["Cube"], modifier_type="")
+    assert is_error(result)
+    assert "empty" in result["error"].lower()
+
+
+async def test_apply_modifiers_batch_empty_list(mock_bridge: MagicMock) -> None:
+    from blender_addon.tools import modifiers
+
+    mcp = make_mcp()
+    modifiers.register(mcp)
+    result = await call(mcp, "apply_modifiers_batch", object_names=[], modifier_name="Subsurf")
+    assert is_error(result)
+    assert "empty" in result["error"].lower()
+
+
+async def test_apply_modifiers_batch_empty_modifier_name(mock_bridge: MagicMock) -> None:
+    from blender_addon.tools import modifiers
+
+    mcp = make_mcp()
+    modifiers.register(mcp)
+    result = await call(mcp, "apply_modifiers_batch", object_names=["Cube"], modifier_name="")
+    assert is_error(result)
+    assert "empty" in result["error"].lower()
+
+
+async def test_remove_modifiers_batch_empty_list(mock_bridge: MagicMock) -> None:
+    from blender_addon.tools import modifiers
+
+    mcp = make_mcp()
+    modifiers.register(mcp)
+    result = await call(mcp, "remove_modifiers_batch", object_names=[], modifier_name="Subsurf")
+    assert is_error(result)
+    assert "empty" in result["error"].lower()
+
+
+async def test_remove_modifiers_batch_empty_modifier_name(mock_bridge: MagicMock) -> None:
+    from blender_addon.tools import modifiers
+
+    mcp = make_mcp()
+    modifiers.register(mcp)
+    result = await call(mcp, "remove_modifiers_batch", object_names=["Cube"], modifier_name="")
+    assert is_error(result)
+    assert "empty" in result["error"].lower()
+
+
 # ---------------------------------------------------------------------------
 # nodes tools — validation and error branches
 # ---------------------------------------------------------------------------

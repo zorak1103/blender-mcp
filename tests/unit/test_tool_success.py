@@ -788,6 +788,125 @@ async def test_apply_modifier_success(mock_bridge: MagicMock, mock_bpy: MagicMoc
     assert result["object"] == "Cube"
 
 
+async def test_add_modifiers_batch_success(mock_bridge: MagicMock, mock_bpy: MagicMock) -> None:
+    mod = MagicMock()
+    mod.name = "Subsurf"
+    mod.type = "SUBSURF"
+    obj = MagicMock()
+    obj.modifiers.new.return_value = mod
+    mock_bpy.data.objects.get.return_value = obj
+
+    from blender_addon.tools import modifiers
+
+    mcp = make_mcp()
+    modifiers.register(mcp)
+    result = await call(mcp, "add_modifiers_batch",
+                        object_names=["Cube", "Sphere"], modifier_type="SUBSURF",
+                        settings={"levels": 2})
+    assert result["count"] == 2
+    assert result["errors"] == []
+    assert len(result["added"]) == 2
+    assert result["added"][0]["object"] == "Cube"
+    assert result["added"][0]["modifier"] == "Subsurf"
+
+
+async def test_add_modifiers_batch_partial_failure(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    mod = MagicMock()
+    mod.name = "Subsurf"
+    mod.type = "SUBSURF"
+    obj = MagicMock()
+    obj.modifiers.new.return_value = mod
+    mock_bpy.data.objects.get.side_effect = lambda n: obj if n == "Cube" else None
+
+    from blender_addon.tools import modifiers
+
+    mcp = make_mcp()
+    modifiers.register(mcp)
+    result = await call(mcp, "add_modifiers_batch",
+                        object_names=["Missing", "Cube"], modifier_type="SUBSURF")
+    assert result["count"] == 1
+    assert len(result["errors"]) == 1
+    assert result["errors"][0]["object"] == "Missing"
+
+
+async def test_apply_modifiers_batch_success(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    mod = MagicMock()
+    obj = MagicMock()
+    obj.modifiers.get.return_value = mod
+    mock_bpy.data.objects.get.return_value = obj
+
+    from blender_addon.tools import modifiers
+
+    mcp = make_mcp()
+    modifiers.register(mcp)
+    result = await call(mcp, "apply_modifiers_batch",
+                        object_names=["Cube", "Sphere"], modifier_name="Subsurf")
+    assert result["count"] == 2
+    assert result["errors"] == []
+    assert len(result["applied"]) == 2
+
+
+async def test_apply_modifiers_batch_partial_failure(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    mod = MagicMock()
+    obj = MagicMock()
+    obj.modifiers.get.return_value = mod
+    mock_bpy.data.objects.get.side_effect = lambda n: obj if n == "Cube" else None
+
+    from blender_addon.tools import modifiers
+
+    mcp = make_mcp()
+    modifiers.register(mcp)
+    result = await call(mcp, "apply_modifiers_batch",
+                        object_names=["Missing", "Cube"], modifier_name="Subsurf")
+    assert result["count"] == 1
+    assert len(result["errors"]) == 1
+    assert result["errors"][0]["object"] == "Missing"
+
+
+async def test_remove_modifiers_batch_success(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    mod = MagicMock()
+    obj = MagicMock()
+    obj.modifiers.get.return_value = mod
+    mock_bpy.data.objects.get.return_value = obj
+
+    from blender_addon.tools import modifiers
+
+    mcp = make_mcp()
+    modifiers.register(mcp)
+    result = await call(mcp, "remove_modifiers_batch",
+                        object_names=["Cube", "Sphere"], modifier_name="Subsurf")
+    assert result["count"] == 2
+    assert result["errors"] == []
+    assert obj.modifiers.remove.call_count == 2
+
+
+async def test_remove_modifiers_batch_partial_failure(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    mod = MagicMock()
+    obj = MagicMock()
+    obj.modifiers.get.return_value = mod
+    mock_bpy.data.objects.get.side_effect = lambda n: obj if n == "Cube" else None
+
+    from blender_addon.tools import modifiers
+
+    mcp = make_mcp()
+    modifiers.register(mcp)
+    result = await call(mcp, "remove_modifiers_batch",
+                        object_names=["Missing", "Cube"], modifier_name="Subsurf")
+    assert result["count"] == 1
+    assert len(result["errors"]) == 1
+    assert result["errors"][0]["object"] == "Missing"
+
+
 # ---------------------------------------------------------------------------
 # animation tools — success paths
 # ---------------------------------------------------------------------------

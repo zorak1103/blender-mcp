@@ -141,6 +141,7 @@ def test_tools_list(mcp_client: httpx.Client) -> None:
         "list_shader_nodes", "add_shader_node", "connect_nodes", "remove_node", "set_node_value",
         # modifiers
         "list_modifiers", "add_modifier", "remove_modifier", "configure_modifier", "apply_modifier",
+        "add_modifiers_batch", "apply_modifiers_batch", "remove_modifiers_batch",
         # animation
         "set_frame_range", "set_current_frame", "set_fps", "insert_keyframe", "delete_keyframe",
         # lighting
@@ -537,6 +538,66 @@ def test_modifier_configure_and_apply(mcp_client: httpx.Client) -> None:
 
     finally:
         call_tool(mcp_client, "delete_objects", {"names": [obj_name]})
+
+
+@pytest.mark.e2e
+def test_batch_modifiers(mcp_client: httpx.Client) -> None:
+    """add_modifiers_batch, apply_modifiers_batch, remove_modifiers_batch work across objects."""
+    names = [f"{E2E_PREFIX}BatchMod1", f"{E2E_PREFIX}BatchMod2"]
+
+    try:
+        for n in names:
+            call_tool(mcp_client, "create_object", {"type": "MESH_CUBE", "name": n})
+
+        # Add SUBSURF to both objects at once
+        add_res = call_tool(mcp_client, "add_modifiers_batch", {
+            "object_names": names,
+            "modifier_type": "SUBSURF",
+            "settings": {"levels": 1},
+        })
+        assert "error" not in add_res, f"add_modifiers_batch failed: {add_res}"
+        assert add_res.get("count") == 2
+        assert add_res.get("errors") == []
+        subsurf_name = add_res["added"][0]["modifier"]
+
+        # Verify modifier exists on both objects
+        for n in names:
+            mods = call_tool(mcp_client, "list_modifiers", {"object_name": n})
+            assert subsurf_name in [m["name"] for m in mods]
+
+        # Apply the modifier on both objects
+        apply_res = call_tool(mcp_client, "apply_modifiers_batch", {
+            "object_names": names,
+            "modifier_name": subsurf_name,
+        })
+        assert "error" not in apply_res, f"apply_modifiers_batch failed: {apply_res}"
+        assert apply_res.get("count") == 2
+        assert apply_res.get("errors") == []
+
+        # Add BEVEL to test remove_modifiers_batch
+        add_res2 = call_tool(mcp_client, "add_modifiers_batch", {
+            "object_names": names,
+            "modifier_type": "BEVEL",
+        })
+        assert "error" not in add_res2, f"add_modifiers_batch (bevel) failed: {add_res2}"
+        bevel_name = add_res2["added"][0]["modifier"]
+
+        # Remove BEVEL from both objects
+        remove_res = call_tool(mcp_client, "remove_modifiers_batch", {
+            "object_names": names,
+            "modifier_name": bevel_name,
+        })
+        assert "error" not in remove_res, f"remove_modifiers_batch failed: {remove_res}"
+        assert remove_res.get("count") == 2
+        assert remove_res.get("errors") == []
+
+        # Verify BEVEL is gone from both objects
+        for n in names:
+            mods = call_tool(mcp_client, "list_modifiers", {"object_name": n})
+            assert bevel_name not in [m["name"] for m in mods]
+
+    finally:
+        call_tool(mcp_client, "delete_objects", {"names": names})
 
 
 @pytest.mark.e2e
