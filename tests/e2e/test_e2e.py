@@ -141,6 +141,8 @@ def test_tools_list(mcp_client: httpx.Client) -> None:
         "list_modifiers", "add_modifier", "remove_modifier", "configure_modifier", "apply_modifier",
         # animation
         "set_frame_range", "set_current_frame", "set_fps", "insert_keyframe", "delete_keyframe",
+        # lighting
+        "configure_light",
     }
     missing = expected - tool_names
     assert not missing, f"Missing tools: {missing}"
@@ -539,3 +541,29 @@ def test_animation_frame_and_fps(mcp_client: httpx.Client) -> None:
     fps_result = call_tool(mcp_client, "set_fps", {"fps": 30})
     assert "error" not in fps_result, f"set_fps failed: {fps_result}"
     assert fps_result.get("fps") == 30
+
+
+@pytest.mark.e2e
+def test_configure_light(mcp_client: httpx.Client) -> None:
+    """configure_light sets energy and color on an existing light object."""
+    light_name = f"{E2E_PREFIX}TestLight"
+
+    try:
+        call_tool(mcp_client, "create_object", {
+            "type": "LIGHT",
+            "name": light_name,
+            "location": [0.0, 0.0, 5.0],
+        })
+
+        result = call_tool(mcp_client, "configure_light", {
+            "name": light_name,
+            "energy": 500.0,
+            "color": [1.0, 0.9, 0.8],
+        })
+        assert "error" not in result, f"configure_light failed: {result}"
+        assert result.get("name") == light_name
+        assert result.get("energy") == 500.0
+        assert result.get("color") == [1.0, 0.9, 0.8]
+
+    finally:
+        call_tool(mcp_client, "delete_objects", {"names": [light_name]})

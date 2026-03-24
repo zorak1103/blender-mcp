@@ -443,3 +443,97 @@ async def test_assign_material_object_no_material_support(
     result = await call(mcp, "assign_material",
                         object_name="Camera", material_name="Mat")
     assert is_error(result)
+
+
+# ---------------------------------------------------------------------------
+# lighting tools
+# ---------------------------------------------------------------------------
+
+
+async def test_configure_light_empty_name(mock_bridge: MagicMock) -> None:
+    from blender_addon.tools import lighting
+
+    mcp = make_mcp()
+    lighting.register(mcp)
+    result = await call(mcp, "configure_light", name="")
+    assert is_error(result)
+    assert "empty" in result["error"].lower()
+
+
+async def test_configure_light_not_found(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    from blender_addon.tools import lighting
+
+    mock_bpy.data.objects.get.return_value = None
+
+    mcp = make_mcp()
+    lighting.register(mcp)
+    result = await call(mcp, "configure_light", name="NoSuchLight")
+    assert is_error(result)
+    assert "not found" in result["error"].lower()
+
+
+async def test_configure_light_not_light(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    from blender_addon.tools import lighting
+
+    obj = MagicMock()
+    obj.type = "MESH"
+    mock_bpy.data.objects.get.return_value = obj
+
+    mcp = make_mcp()
+    lighting.register(mcp)
+    result = await call(mcp, "configure_light", name="Cube")
+    assert is_error(result)
+    assert "not a light" in result["error"].lower()
+
+
+async def test_configure_light_invalid_type(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    from blender_addon.tools import lighting
+
+    obj = MagicMock()
+    obj.type = "LIGHT"
+    mock_bpy.data.objects.get.return_value = obj
+
+    mcp = make_mcp()
+    lighting.register(mcp)
+    result = await call(mcp, "configure_light", name="Light", light_type="LASER")
+    assert is_error(result)
+    assert "invalid light_type" in result["error"].lower()
+
+
+async def test_configure_light_invalid_color(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    from blender_addon.tools import lighting
+
+    obj = MagicMock()
+    obj.type = "LIGHT"
+    mock_bpy.data.objects.get.return_value = obj
+
+    mcp = make_mcp()
+    lighting.register(mcp)
+    result = await call(mcp, "configure_light", name="Light", color=[1.0, 0.0])
+    assert is_error(result)
+    assert "3 components" in result["error"].lower()
+
+
+async def test_configure_light_spot_on_non_spot(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    from blender_addon.tools import lighting
+
+    obj = MagicMock()
+    obj.type = "LIGHT"
+    obj.data.type = "POINT"
+    mock_bpy.data.objects.get.return_value = obj
+
+    mcp = make_mcp()
+    lighting.register(mcp)
+    result = await call(mcp, "configure_light", name="Light", spot_size=1.0)
+    assert is_error(result)
+    assert "spot" in result["error"].lower()

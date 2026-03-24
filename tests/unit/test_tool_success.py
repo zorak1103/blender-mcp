@@ -683,3 +683,28 @@ async def test_delete_keyframe_success(mock_bridge: MagicMock, mock_bpy: MagicMo
     result = await call(mcp, "delete_keyframe",
                         object_name="Cube", data_path="location", frame=1)
     assert result["success"] is True
+
+
+# ---------------------------------------------------------------------------
+# lighting tools
+# ---------------------------------------------------------------------------
+
+
+async def test_configure_light_success(mock_bridge: MagicMock, mock_bpy: MagicMock) -> None:
+    obj = MagicMock()
+    obj.type = "LIGHT"
+    obj.data.type = "POINT"
+    obj.data.energy = 1000.0
+    obj.data.color = [1.0, 0.8, 0.6]
+    obj.data.shadow_soft_size = 0.25
+    mock_bpy.data.objects.get.return_value = obj
+
+    from blender_addon.tools import lighting
+
+    mcp = make_mcp()
+    lighting.register(mcp)
+    result = await call(mcp, "configure_light",
+                        name="Sun", energy=1000.0, color=[1.0, 0.8, 0.6])
+    assert result["name"] == "Sun"
+    assert result["energy"] == 1000.0
+    assert result["color"] == [1.0, 0.8, 0.6]
