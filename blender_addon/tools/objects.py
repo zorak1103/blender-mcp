@@ -173,3 +173,100 @@ def register(mcp) -> None:
             return {"child": child_name, "parent": parent_name}
 
         return await run_tool("parent_objects", _do)
+
+    @mcp.tool()
+    async def create_object_grid(
+        type: str,
+        name_prefix: str,
+        count: list[int],
+        spacing: list[float] = [2.0, 2.0, 2.0],  # noqa: B006
+        origin: list[float] = [0.0, 0.0, 0.0],  # noqa: B006
+        scale: list[float] = [1.0, 1.0, 1.0],  # noqa: B006
+    ) -> str:
+        """Create a 3-D grid of objects in a single call.
+
+        type must be one of: MESH_CUBE, MESH_SPHERE, MESH_CYLINDER, MESH_PLANE,
+        MESH_CONE, MESH_TORUS, CAMERA, LIGHT, EMPTY.
+        count is [nx, ny, nz] — number of objects along each axis (each >= 1).
+        Objects are named {name_prefix}_{ix}_{iy}_{iz}.
+        """
+
+        def _do():
+            if not name_prefix:
+                raise ValueError("name_prefix must not be empty")
+            op = _TYPE_MAP.get(type.upper())
+            if op is None:
+                raise ValueError(f"Unknown type '{type}'. Valid types: {', '.join(_TYPE_MAP)}")
+            if len(count) != 3 or any(c < 1 for c in count):
+                raise ValueError("count must have exactly 3 elements, each >= 1")
+            if len(spacing) != 3:
+                raise ValueError("spacing must have exactly 3 elements")
+            if len(origin) != 3:
+                raise ValueError("origin must have exactly 3 elements")
+            if len(scale) != 3:
+                raise ValueError("scale must have exactly 3 elements")
+
+            created = []
+            for ix in range(count[0]):
+                for iy in range(count[1]):
+                    for iz in range(count[2]):
+                        loc = (
+                            origin[0] + ix * spacing[0],
+                            origin[1] + iy * spacing[1],
+                            origin[2] + iz * spacing[2],
+                        )
+                        op(location=loc)
+                        obj = bpy.context.active_object
+                        obj.name = f"{name_prefix}_{ix}_{iy}_{iz}"
+                        obj.scale = tuple(scale)
+                        created.append(obj.name)
+
+            return {"created": created, "count": len(created), "grid": list(count)}
+
+        return await run_tool("create_object_grid", _do)
+
+    @mcp.tool()
+    async def create_objects_batch(
+        objects: list[dict],
+    ) -> str:
+        """Create multiple objects in a single call.
+
+        Each dict: {"type": str, "name": str, "location"?: [x,y,z],
+                    "rotation"?: [x,y,z], "scale"?: [x,y,z]}
+        type must be one of: MESH_CUBE, MESH_SPHERE, MESH_CYLINDER, MESH_PLANE,
+        MESH_CONE, MESH_TORUS, CAMERA, LIGHT, EMPTY.
+        Per-object failures are recorded in "errors" and do not abort the batch.
+        """
+
+        def _do():
+            if not objects:
+                raise ValueError("objects list must not be empty")
+
+            created = []
+            errors = []
+            for entry in objects:
+                obj_name = entry.get("name", "")
+                try:
+                    obj_type = entry.get("type", "")
+                    if not obj_name:
+                        raise ValueError("name must not be empty")
+                    op = _TYPE_MAP.get(str(obj_type).upper())
+                    if op is None:
+                        raise ValueError(
+                            f"Unknown type '{obj_type}'. Valid types: {', '.join(_TYPE_MAP)}"
+                        )
+                    loc = tuple(entry.get("location", [0.0, 0.0, 0.0]))
+                    rot = tuple(entry.get("rotation", [0.0, 0.0, 0.0]))
+                    sc = tuple(entry.get("scale", [1.0, 1.0, 1.0]))
+                    op(location=loc)
+                    obj = bpy.context.active_object
+                    obj.name = obj_name
+                    obj.rotation_euler = rot
+                    obj.scale = sc
+                    created.append(obj.name)
+                except Exception as exc:
+                    errors.append({"name": obj_name or "?", "error": str(exc)})
+
+            return {"created": created, "errors": errors, "count": len(created)}
+
+        return await run_tool("create_objects_batch", _do)
