@@ -3,11 +3,12 @@
 A [Model Context Protocol](https://modelcontextprotocol.io/) server that lets LLMs such as Claude control Blender — creating scenes, manipulating objects, assigning materials, configuring shader nodes, applying modifiers, setting keyframes, and rendering.
 
 ```
-Claude Code ──stdio──> launcher.py ──HTTP──> Blender (GUI)
-                                              └─ MCP Server on localhost:8400
+                  ┌──── HTTP (recommended) ────────────────┐
+Claude Code ──────┤                                         ├──> Blender (GUI)
+  / any client    └──stdio──> launcher.py ──HTTP ───────────┘     └─ MCP Server on localhost:8400
 ```
 
-Blender must be running with the add-on enabled. `launcher.py` is a thin stdio-to-HTTP proxy that bridges Claude Code's subprocess transport to Blender's in-process HTTP server.
+Blender must be running with the add-on enabled. The add-on exposes a Streamable HTTP MCP endpoint at `http://localhost:8400/mcp` — any MCP client that supports HTTP transport can connect directly. For clients that only support stdio transport, `launcher.py` acts as a thin stdio-to-HTTP proxy.
 
 ---
 
@@ -16,10 +17,12 @@ Blender must be running with the add-on enabled. `launcher.py` is a thin stdio-t
 | Requirement | Notes |
 |---|---|
 | Blender 4.0 or newer | Must run in GUI mode (not headless) |
-| Python 3.11+ (system) | For `launcher.py`; must have `httpx` and `mcp[cli]` |
+| Python 3.11+ (system) | Only needed for `launcher.py` (stdio fallback); must have `httpx` and `mcp[cli]` |
 | `mcp[cli]` in Blender's Python | Separate install — see below |
 
-### 1. Install launcher dependencies (system Python)
+### 1. Install launcher dependencies (optional — stdio fallback only)
+
+> Skip this step if you are connecting via HTTP (recommended).
 
 ```bash
 pip install httpx "mcp[cli]"
@@ -108,7 +111,35 @@ In **Edit → Preferences → Add-ons → Blender MCP Server**, set the **Port**
 
 ---
 
-## Connecting Claude Code
+## Connecting an MCP Client
+
+**Important:** Blender must already be running with the add-on enabled before connecting.
+
+### Option A — Direct HTTP (recommended)
+
+The add-on exposes a Streamable HTTP endpoint at `http://localhost:8400/mcp`. Any MCP client
+that supports HTTP transport can connect directly — no proxy, no extra Python dependencies.
+
+**Claude Code** (`~/.claude/settings.json` or `.claude/settings.json`):
+
+```json
+{
+  "mcpServers": {
+    "blender-mcp": {
+      "type": "http",
+      "url": "http://localhost:8400/mcp"
+    }
+  }
+}
+```
+
+**Other clients** (Cline, OpenCode, etc.): point the HTTP/SSE transport URL to
+`http://localhost:8400/mcp`.
+
+### Option B — stdio proxy (fallback)
+
+If your MCP client only supports stdio transport, use `launcher.py` as a thin proxy.
+This requires system Python with `httpx` and `mcp[cli]` installed (see Prerequisites).
 
 Add the following to `~/.claude/settings.json` (global) or `.claude/settings.json` (project-level):
 
@@ -123,21 +154,23 @@ Add the following to `~/.claude/settings.json` (global) or `.claude/settings.jso
 }
 ```
 
-Replace `/absolute/path/to/blender-mcp/` with the actual path to the cloned repository. The `python` command must be the interpreter where you installed `httpx` and `mcp[cli]` in the system step above.
-
-**Important:** Blender must already be running with the add-on enabled before Claude Code starts a session. `launcher.py` will wait up to 60 seconds for Blender to become reachable, then time out.
+Replace `/absolute/path/to/blender-mcp/` with the actual path to the cloned repository.
+`launcher.py` will wait up to 60 seconds for Blender to become reachable, then time out.
 
 ### Verify the connection
 
 ```bash
-# Quick HTTP check (Blender must be running):
-curl http://localhost:8400/mcp
-
-# Full stdio round-trip:
-echo '{"jsonrpc":"2.0","method":"tools/list","id":1}' | python launcher.py
+# HTTP check (works for both Option A and B):
+curl -s -X POST http://localhost:8400/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","method":"initialize","id":1,"params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0"}}}'
 ```
 
-The second command should print a JSON response listing all available tools (`list_scenes`, `create_object`, `render_image`, etc.).
+```bash
+# stdio proxy round-trip (Option B only):
+echo '{"jsonrpc":"2.0","method":"tools/list","id":1}' | python launcher.py
+```
 
 ---
 
