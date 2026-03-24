@@ -141,6 +141,41 @@ The second command should print a JSON response listing all available tools (`li
 
 ---
 
+## Development Setup
+
+For active development, use a symlink instead of reinstalling the zip after every change.
+
+### Windows
+
+Run once in an elevated (Administrator) command prompt:
+
+```cmd
+mklink /D "%APPDATA%\Blender Foundation\Blender\4.5\scripts\addons\blender_addon" "E:\path\to\blender-mcp\blender_addon"
+```
+
+Replace `E:\path\to\blender-mcp` with the actual repository path and `4.5` with your Blender version.
+
+### Linux / macOS
+
+```bash
+ln -s /path/to/blender-mcp/blender_addon \
+  ~/.config/blender/4.5/scripts/addons/blender_addon   # Linux
+  # or
+  ~/Library/Application\ Support/Blender/4.5/scripts/addons/blender_addon  # macOS
+```
+
+### Reloading after changes
+
+After editing Python source files, reload the add-on in Blender without restarting:
+
+1. **Edit → Preferences → Add-ons** → find "Blender MCP Server"
+2. Uncheck the add-on (unregisters bridge + server)
+3. Check it again (re-registers with the updated code)
+
+> **Note:** Blender caches imported modules. For deep module changes you may need to fully restart Blender.
+
+---
+
 ## Available Tools
 
 | Category | Tools |
