@@ -120,21 +120,16 @@ In **Edit → Preferences → Add-ons → Blender MCP Server**, set the **Port**
 The add-on exposes a Streamable HTTP endpoint at `http://localhost:8400/mcp`. Any MCP client
 that supports HTTP transport can connect directly — no proxy, no extra Python dependencies.
 
-**Claude Code** (`~/.claude/settings.json` or `.claude/settings.json`):
+**Claude Code** — the `.mcp.json` at the repository root is already configured. No additional setup is needed when working inside this repository. To register globally (outside this repo):
 
-```json
-{
-  "mcpServers": {
-    "blender-mcp": {
-      "type": "http",
-      "url": "http://localhost:8400/mcp"
-    }
-  }
-}
+```bash
+claude mcp add --transport http --scope user blender-mcp http://localhost:8400/mcp
 ```
 
 **Other clients** (Cline, OpenCode, etc.): point the HTTP/SSE transport URL to
 `http://localhost:8400/mcp`.
+
+> **Note for Claude Code users:** MCP servers from `.mcp.json` require either `"enableAllProjectMcpServers": true` in `.claude/settings.local.json`, or explicit approval via the dialog that appears on first launch. If the tools are not available and no dialog appeared, add `"enableAllProjectMcpServers": true` to `.claude/settings.local.json` and restart Claude Code.
 
 ### Option B — stdio proxy (fallback)
 
@@ -279,6 +274,38 @@ curl -s -X POST http://localhost:8400/mcp \
 
 **Expected:** a list of 32 tools including `list_scenes`, `create_object`, `render_image`, etc.
 **If the tool count is wrong:** the add-on version may be outdated — inform the user.
+
+---
+
+## Troubleshooting
+
+### MCP tools not available in Claude Code / approval dialog never appeared
+
+Claude Code loads servers from `.mcp.json` only when `enableAllProjectMcpServers` is `true` or the user approves them via a one-time dialog. If neither happened, the server silently stays inactive.
+
+**Fix:** add or update `.claude/settings.local.json` in the repository root:
+
+```json
+{
+  "enableAllProjectMcpServers": true
+}
+```
+
+Then restart Claude Code. The blender-mcp tools should appear immediately.
+
+### `curl http://localhost:8400/mcp` returns "Not Acceptable"
+
+This is expected and means the server **is** running. The endpoint requires specific headers. Use the full POST check from [Verify the connection](#verify-the-connection) instead.
+
+### The add-on appears enabled but tools/list returns an error or times out
+
+- Confirm the Info bar shows `Blender MCP Server registered, port=8400` after enabling the add-on.
+- If you changed the port, update the URL in `.mcp.json` accordingly.
+- Try disabling and re-enabling the add-on in **Edit → Preferences → Add-ons**.
+
+### `mcp[cli]` not found when enabling the add-on in Blender
+
+The package must be installed into Blender's **own** Python, not the system Python. Re-run the install command using the Blender Python executable (see [Prerequisites](#prerequisites)).
 
 ---
 
