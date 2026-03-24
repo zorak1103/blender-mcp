@@ -4,16 +4,12 @@ Render tools: configure render settings, render to file, capture viewport screen
 
 from __future__ import annotations
 
-import concurrent.futures
-import json
 import logging
 import os
-from collections.abc import Callable
-from typing import Any
 
 import bpy
 
-from ..bridge import bridge
+from ._helpers import run_tool
 
 logger = logging.getLogger(__name__)
 
@@ -26,19 +22,6 @@ def _validate_path(path: str, param: str) -> None:
         raise ValueError(f"{param} must not be empty")
     if ".." in os.path.normpath(path).split(os.sep):
         raise ValueError(f"{param} must not contain '..' path traversal components")
-
-
-async def _run_tool(tool_name: str, fn: Callable[[], Any]) -> str:
-    """Shared async wrapper: runs fn on the main thread and returns JSON."""
-    try:
-        fut = bridge.run_on_main_thread(fn)  # type: ignore[union-attr]
-        result = fut.result(timeout=30)
-        return json.dumps(result)
-    except concurrent.futures.TimeoutError:
-        return json.dumps({"error": "Main thread timeout after 30s", "tool": tool_name})
-    except Exception as exc:
-        logger.exception("Tool %s failed", tool_name)
-        return json.dumps({"error": str(exc), "tool": tool_name})
 
 
 def register(mcp) -> None:
@@ -84,7 +67,7 @@ def register(mcp) -> None:
                 "output_path": scene.render.filepath,
             }
 
-        return await _run_tool("set_render_settings", _do)
+        return await run_tool("set_render_settings", _do)
 
     @mcp.tool()
     async def render_image(filepath: str, file_format: str = "PNG") -> str:
@@ -107,7 +90,7 @@ def register(mcp) -> None:
                 "resolution": [scene.render.resolution_x, scene.render.resolution_y],
             }
 
-        return await _run_tool("render_image", _do)
+        return await run_tool("render_image", _do)
 
     @mcp.tool()
     async def screenshot_viewport(filepath: str) -> str:
@@ -128,4 +111,4 @@ def register(mcp) -> None:
                     return {"filepath": filepath, "area_type": "VIEW_3D"}
             raise RuntimeError("No VIEW_3D area found in the current screen layout")
 
-        return await _run_tool("screenshot_viewport", _do)
+        return await run_tool("screenshot_viewport", _do)

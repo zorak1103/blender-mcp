@@ -4,30 +4,13 @@ Shader node graph tools: list, add, connect, remove nodes, set node input values
 
 from __future__ import annotations
 
-import concurrent.futures
-import json
 import logging
-from collections.abc import Callable
-from typing import Any
 
 import bpy
 
-from ..bridge import bridge
+from ._helpers import run_tool
 
 logger = logging.getLogger(__name__)
-
-
-async def _run_tool(tool_name: str, fn: Callable[[], Any]) -> str:
-    """Shared async wrapper: runs fn on the main thread and returns JSON."""
-    try:
-        fut = bridge.run_on_main_thread(fn)  # type: ignore[union-attr]
-        result = fut.result(timeout=30)
-        return json.dumps(result)
-    except concurrent.futures.TimeoutError:
-        return json.dumps({"error": "Main thread timeout after 30s", "tool": tool_name})
-    except Exception as exc:
-        logger.exception("Tool %s failed", tool_name)
-        return json.dumps({"error": str(exc), "tool": tool_name})
 
 
 def register(mcp) -> None:
@@ -56,7 +39,7 @@ def register(mcp) -> None:
                 for n in mat.node_tree.nodes
             ]
 
-        return await _run_tool("list_shader_nodes", _do)
+        return await run_tool("list_shader_nodes", _do)
 
     @mcp.tool()
     async def add_shader_node(
@@ -86,7 +69,7 @@ def register(mcp) -> None:
             node.location = tuple(location)
             return {"name": node.name, "type": node.type, "location": list(node.location)}
 
-        return await _run_tool("add_shader_node", _do)
+        return await run_tool("add_shader_node", _do)
 
     @mcp.tool()
     async def connect_nodes(
@@ -152,7 +135,7 @@ def register(mcp) -> None:
                 "to": f"{to_node}.{to_input}",
             }
 
-        return await _run_tool("connect_nodes", _do)
+        return await run_tool("connect_nodes", _do)
 
     @mcp.tool()
     async def remove_node(material_name: str, node_name: str) -> str:
@@ -174,7 +157,7 @@ def register(mcp) -> None:
             mat.node_tree.nodes.remove(node)
             return {"removed": node_name, "material": material_name}
 
-        return await _run_tool("remove_node", _do)
+        return await run_tool("remove_node", _do)
 
     @mcp.tool()
     async def set_node_value(
@@ -209,4 +192,4 @@ def register(mcp) -> None:
             socket.default_value = value
             return {"node": node_name, "input": input_name, "value": value}
 
-        return await _run_tool("set_node_value", _do)
+        return await run_tool("set_node_value", _do)

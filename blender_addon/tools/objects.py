@@ -4,28 +4,13 @@ Object CRUD and transform tools: create, delete, transform, duplicate, select, p
 
 from __future__ import annotations
 
-import concurrent.futures
-import json
 import logging
 
 import bpy
 
-from ..bridge import bridge
+from ._helpers import run_tool
 
 logger = logging.getLogger(__name__)
-
-
-async def _run_tool(tool_name: str, fn) -> str:
-    """Shared async wrapper: runs fn on the main thread and returns JSON."""
-    try:
-        fut = bridge.run_on_main_thread(fn)  # type: ignore[union-attr]
-        result = fut.result(timeout=30)
-        return json.dumps(result)
-    except concurrent.futures.TimeoutError:
-        return json.dumps({"error": "Main thread timeout after 30s", "tool": tool_name})
-    except Exception as exc:
-        logger.exception("Tool %s failed", tool_name)
-        return json.dumps({"error": str(exc), "tool": tool_name})
 
 
 _TYPE_MAP = {
@@ -75,7 +60,7 @@ def register(mcp) -> None:
             obj.scale = tuple(scale)
             return {"name": obj.name, "type": obj.type, "location": list(obj.location)}
 
-        return await _run_tool("create_object", _do)
+        return await run_tool("create_object", _do)
 
     @mcp.tool()
     async def delete_objects(names: list[str]) -> str:
@@ -94,7 +79,7 @@ def register(mcp) -> None:
             deleted = [n for n in names if n not in not_found]
             return {"deleted": deleted, "not_found": not_found}
 
-        return await _run_tool("delete_objects", _do)
+        return await run_tool("delete_objects", _do)
 
     @mcp.tool()
     async def transform_object(
@@ -124,7 +109,7 @@ def register(mcp) -> None:
                 "scale": list(obj.scale),
             }
 
-        return await _run_tool("transform_object", _do)
+        return await run_tool("transform_object", _do)
 
     @mcp.tool()
     async def duplicate_object(name: str, linked: bool = False) -> str:
@@ -143,7 +128,7 @@ def register(mcp) -> None:
             new_obj = bpy.context.active_object
             return {"original": name, "duplicate": new_obj.name, "linked": linked}
 
-        return await _run_tool("duplicate_object", _do)
+        return await run_tool("duplicate_object", _do)
 
     @mcp.tool()
     async def select_objects(names: list[str], deselect_others: bool = True) -> str:
@@ -162,7 +147,7 @@ def register(mcp) -> None:
                     not_found.append(n)
             return {"selected": selected, "not_found": not_found}
 
-        return await _run_tool("select_objects", _do)
+        return await run_tool("select_objects", _do)
 
     @mcp.tool()
     async def parent_objects(
@@ -187,4 +172,4 @@ def register(mcp) -> None:
                 child.matrix_parent_inverse = parent.matrix_world.inverted()
             return {"child": child_name, "parent": parent_name}
 
-        return await _run_tool("parent_objects", _do)
+        return await run_tool("parent_objects", _do)

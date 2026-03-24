@@ -4,28 +4,13 @@ Scene inspection tools: list scenes, get scene info, list objects, get object in
 
 from __future__ import annotations
 
-import concurrent.futures
-import json
 import logging
 
 import bpy
 
-from ..bridge import bridge
+from ._helpers import run_tool
 
 logger = logging.getLogger(__name__)
-
-
-async def _run_tool(tool_name: str, fn) -> str:
-    """Shared async wrapper: runs fn on the main thread and returns JSON."""
-    try:
-        fut = bridge.run_on_main_thread(fn)  # type: ignore[union-attr]
-        result = fut.result(timeout=30)
-        return json.dumps(result)
-    except concurrent.futures.TimeoutError:
-        return json.dumps({"error": "Main thread timeout after 30s", "tool": tool_name})
-    except Exception as exc:
-        logger.exception("Tool %s failed", tool_name)
-        return json.dumps({"error": str(exc), "tool": tool_name})
 
 
 def register(mcp) -> None:
@@ -46,7 +31,7 @@ def register(mcp) -> None:
                 for s in bpy.data.scenes
             ]
 
-        return await _run_tool("list_scenes", _do)
+        return await run_tool("list_scenes", _do)
 
     @mcp.tool()
     async def get_scene_info(scene_name: str = "") -> str:
@@ -67,7 +52,7 @@ def register(mcp) -> None:
                 "fps": scene.render.fps,
             }
 
-        return await _run_tool("get_scene_info", _do)
+        return await run_tool("get_scene_info", _do)
 
     @mcp.tool()
     async def list_objects(scene_name: str = "") -> str:
@@ -87,7 +72,7 @@ def register(mcp) -> None:
                 for o in scene.objects
             ]
 
-        return await _run_tool("list_objects", _do)
+        return await run_tool("list_objects", _do)
 
     @mcp.tool()
     async def get_object_info(name: str) -> str:
@@ -118,4 +103,4 @@ def register(mcp) -> None:
                 "parent": obj.parent.name if obj.parent else None,
             }
 
-        return await _run_tool("get_object_info", _do)
+        return await run_tool("get_object_info", _do)

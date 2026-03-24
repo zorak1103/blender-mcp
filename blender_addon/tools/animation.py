@@ -4,30 +4,13 @@ Animation tools: insert/delete keyframes, set frame range, set current frame, se
 
 from __future__ import annotations
 
-import concurrent.futures
-import json
 import logging
-from collections.abc import Callable
-from typing import Any
 
 import bpy
 
-from ..bridge import bridge
+from ._helpers import run_tool
 
 logger = logging.getLogger(__name__)
-
-
-async def _run_tool(tool_name: str, fn: Callable[[], Any]) -> str:
-    """Shared async wrapper: runs fn on the main thread and returns JSON."""
-    try:
-        fut = bridge.run_on_main_thread(fn)  # type: ignore[union-attr]
-        result = fut.result(timeout=30)
-        return json.dumps(result)
-    except concurrent.futures.TimeoutError:
-        return json.dumps({"error": "Main thread timeout after 30s", "tool": tool_name})
-    except Exception as exc:
-        logger.exception("Tool %s failed", tool_name)
-        return json.dumps({"error": str(exc), "tool": tool_name})
 
 
 def register(mcp) -> None:
@@ -47,7 +30,7 @@ def register(mcp) -> None:
             scene.frame_end = end
             return {"frame_start": scene.frame_start, "frame_end": scene.frame_end}
 
-        return await _run_tool("set_frame_range", _do)
+        return await run_tool("set_frame_range", _do)
 
     @mcp.tool()
     async def set_current_frame(frame: int) -> str:
@@ -59,7 +42,7 @@ def register(mcp) -> None:
             bpy.context.scene.frame_set(frame)
             return {"current_frame": bpy.context.scene.frame_current}
 
-        return await _run_tool("set_current_frame", _do)
+        return await run_tool("set_current_frame", _do)
 
     @mcp.tool()
     async def set_fps(fps: int) -> str:
@@ -71,7 +54,7 @@ def register(mcp) -> None:
             bpy.context.scene.render.fps = fps
             return {"fps": bpy.context.scene.render.fps}
 
-        return await _run_tool("set_fps", _do)
+        return await run_tool("set_fps", _do)
 
     @mcp.tool()
     async def insert_keyframe(
@@ -100,7 +83,7 @@ def register(mcp) -> None:
             obj.keyframe_insert(data_path=data_path, frame=frame, index=index)
             return {"object": object_name, "data_path": data_path, "frame": frame}
 
-        return await _run_tool("insert_keyframe", _do)
+        return await run_tool("insert_keyframe", _do)
 
     @mcp.tool()
     async def delete_keyframe(
@@ -132,4 +115,4 @@ def register(mcp) -> None:
                 "success": success,
             }
 
-        return await _run_tool("delete_keyframe", _do)
+        return await run_tool("delete_keyframe", _do)

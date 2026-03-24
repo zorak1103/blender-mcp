@@ -4,30 +4,14 @@ Modifier stack tools: add, configure, apply, remove modifiers, list modifier sta
 
 from __future__ import annotations
 
-import concurrent.futures
-import json
 import logging
-from collections.abc import Callable
 from typing import Any
 
 import bpy
 
-from ..bridge import bridge
+from ._helpers import run_tool
 
 logger = logging.getLogger(__name__)
-
-
-async def _run_tool(tool_name: str, fn: Callable[[], Any]) -> str:
-    """Shared async wrapper: runs fn on the main thread and returns JSON."""
-    try:
-        fut = bridge.run_on_main_thread(fn)  # type: ignore[union-attr]
-        result = fut.result(timeout=30)
-        return json.dumps(result)
-    except concurrent.futures.TimeoutError:
-        return json.dumps({"error": "Main thread timeout after 30s", "tool": tool_name})
-    except Exception as exc:
-        logger.exception("Tool %s failed", tool_name)
-        return json.dumps({"error": str(exc), "tool": tool_name})
 
 
 def register(mcp) -> None:
@@ -53,7 +37,7 @@ def register(mcp) -> None:
                 for m in obj.modifiers
             ]
 
-        return await _run_tool("list_modifiers", _do)
+        return await run_tool("list_modifiers", _do)
 
     @mcp.tool()
     async def add_modifier(
@@ -84,7 +68,7 @@ def register(mcp) -> None:
                     logger.warning("Modifier '%s' has no attribute '%s'", mod.type, key)
             return {"name": mod.name, "type": mod.type}
 
-        return await _run_tool("add_modifier", _do)
+        return await run_tool("add_modifier", _do)
 
     @mcp.tool()
     async def remove_modifier(object_name: str, modifier_name: str) -> str:
@@ -106,7 +90,7 @@ def register(mcp) -> None:
             obj.modifiers.remove(mod)
             return {"removed": modifier_name, "object": object_name}
 
-        return await _run_tool("remove_modifier", _do)
+        return await run_tool("remove_modifier", _do)
 
     @mcp.tool()
     async def configure_modifier(
@@ -142,7 +126,7 @@ def register(mcp) -> None:
                     logger.warning("Modifier '%s' has no attribute '%s'", mod.type, key)
             return {"modifier": modifier_name, "updated": updated}
 
-        return await _run_tool("configure_modifier", _do)
+        return await run_tool("configure_modifier", _do)
 
     @mcp.tool()
     async def apply_modifier(object_name: str, modifier_name: str) -> str:
@@ -167,4 +151,4 @@ def register(mcp) -> None:
             bpy.ops.object.modifier_apply(modifier=modifier_name)
             return {"applied": modifier_name, "object": object_name}
 
-        return await _run_tool("apply_modifier", _do)
+        return await run_tool("apply_modifier", _do)
