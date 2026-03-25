@@ -682,13 +682,41 @@ def test_world_settings(mcp_client: httpx.Client) -> None:
 
 @pytest.mark.e2e
 def test_execute_python(mcp_client: httpx.Client) -> None:
-    """execute_python runs arbitrary bpy code and returns __result__."""
+    """execute_python runs bpy code and returns __result__."""
     result = call_tool(mcp_client, "execute_python", {
         "code": "__result__ = [obj.name for obj in bpy.data.objects]",
     })
     assert "error" not in result, f"execute_python failed: {result}"
     assert result.get("status") == "ok"
     assert isinstance(result.get("result"), list)
+
+
+@pytest.mark.e2e
+def test_execute_python_reports_mode(mcp_client: httpx.Client) -> None:
+    """execute_python response includes a 'mode' field indicating restricted or unrestricted."""
+    result = call_tool(mcp_client, "execute_python", {
+        "code": "__result__ = 1",
+    })
+    assert "error" not in result, f"execute_python failed: {result}"
+    assert result.get("mode") in ("restricted", "unrestricted"), (
+        f"Expected 'mode' to be 'restricted' or 'unrestricted', got: {result.get('mode')!r}"
+    )
+
+
+@pytest.mark.e2e
+def test_execute_python_restricted_blocks_os(mcp_client: httpx.Client) -> None:
+    """In restricted mode, importing os is blocked and returns an error.
+
+    NOTE: This test only passes when execute_python runs in restricted mode
+    (the default). Skip or ignore if YOLO mode is active in preferences.
+    """
+    result = call_tool(mcp_client, "execute_python", {
+        "code": "import os",
+    })
+    if result.get("mode") == "unrestricted":
+        pytest.skip("Blender is running in YOLO mode — restricted-mode tests are not applicable")
+    assert "error" in result, f"Expected import of 'os' to be blocked, but got: {result}"
+    assert "not allowed" in result["error"].lower()
 
 
 @pytest.mark.e2e

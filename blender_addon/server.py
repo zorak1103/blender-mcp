@@ -21,12 +21,21 @@ mcp: FastMCP | None = None
 _server_thread: threading.Thread | None = None
 PORT: int = 8400
 
+#: Whether execute_python runs without sandbox restrictions (YOLO mode).
+#: Read at tool-call time by scripting.py so mode changes take effect immediately.
+execute_python_unrestricted: bool = False
 
-def setup(port: int = 8400, allow_execute_python: bool = False) -> None:
+
+def setup(
+    port: int = 8400,
+    allow_execute_python: bool = False,
+    unrestricted: bool = False,
+) -> None:
     """Instantiate the FastMCP server and register all tool modules."""
-    global mcp, PORT
+    global mcp, PORT, execute_python_unrestricted
 
     PORT = port
+    execute_python_unrestricted = unrestricted
     mcp = FastMCP("blender-mcp", host="127.0.0.1", port=port)
     register_all(mcp, allow_execute_python=allow_execute_python)
     logger.info("MCP server configured on port %d", port)

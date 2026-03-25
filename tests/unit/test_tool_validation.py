@@ -1048,3 +1048,59 @@ async def test_execute_python_empty_code(mock_bridge: MagicMock) -> None:
     result = await call(mcp, "execute_python", code="")
     assert is_error(result)
     assert "non-empty" in result["error"].lower()
+
+
+# ---------------------------------------------------------------------------
+# execute_python — restricted mode blocking tests
+# ---------------------------------------------------------------------------
+
+
+async def _call_restricted(code: str, mock_bridge: MagicMock) -> dict:  # type: ignore[type-arg]
+    """Helper: call execute_python in restricted mode and return parsed result."""
+    from blender_addon import server as server_mod
+    from blender_addon.tools import scripting
+
+    original = server_mod.execute_python_unrestricted
+    server_mod.execute_python_unrestricted = False
+    try:
+        mcp = make_mcp()
+        scripting.register(mcp)
+        return await call(mcp, "execute_python", code=code)
+    finally:
+        server_mod.execute_python_unrestricted = original
+
+
+async def test_execute_python_restricted_blocks_os_import(mock_bridge: MagicMock) -> None:
+    result = await _call_restricted("import os", mock_bridge)
+    assert is_error(result)
+    assert "not allowed" in result["error"].lower()
+
+
+async def test_execute_python_restricted_blocks_subprocess(mock_bridge: MagicMock) -> None:
+    result = await _call_restricted("import subprocess", mock_bridge)
+    assert is_error(result)
+    assert "not allowed" in result["error"].lower()
+
+
+async def test_execute_python_restricted_blocks_socket(mock_bridge: MagicMock) -> None:
+    result = await _call_restricted("import socket", mock_bridge)
+    assert is_error(result)
+    assert "not allowed" in result["error"].lower()
+
+
+async def test_execute_python_restricted_blocks_open(mock_bridge: MagicMock) -> None:
+    # open() is not in SAFE_BUILTINS, so it raises NameError
+    result = await _call_restricted("open('/tmp/x', 'r')", mock_bridge)
+    assert is_error(result)
+
+
+async def test_execute_python_restricted_blocks_dunder_import(mock_bridge: MagicMock) -> None:
+    # __import__ in restricted mode is the safe wrapper; importing os must fail
+    result = await _call_restricted("__import__('os')", mock_bridge)
+    assert is_error(result)
+    assert "not allowed" in result["error"].lower()
+
+
+async def test_execute_python_restricted_reports_mode(mock_bridge: MagicMock) -> None:
+    result = await _call_restricted("__result__ = 42", mock_bridge)
+    assert result.get("mode") == "restricted"

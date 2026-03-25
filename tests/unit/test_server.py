@@ -96,6 +96,7 @@ def test_register_initialises_bridge_and_starts_server(mock_bpy: MagicMock) -> N
     prefs = MagicMock()
     prefs.port = 8400
     prefs.allow_execute_python = False
+    prefs.execute_python_unrestricted = False
     mock_bpy.context.preferences.addons.__getitem__.return_value.preferences = prefs
 
     with patch.object(bridge_mod, "MainThreadBridge", return_value=mock_bridge_inst):
@@ -104,7 +105,7 @@ def test_register_initialises_bridge_and_starts_server(mock_bpy: MagicMock) -> N
                 blender_addon.register()
 
     mock_bridge_inst.start.assert_called_once()
-    mock_setup.assert_called_once_with(port=8400, allow_execute_python=False)
+    mock_setup.assert_called_once_with(port=8400, allow_execute_python=False, unrestricted=False)
     mock_start.assert_called_once()
     assert bridge_mod.bridge is mock_bridge_inst
 

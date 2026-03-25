@@ -1110,3 +1110,74 @@ async def test_execute_python_runtime_error(mock_bridge: MagicMock) -> None:
     assert "error" in result
     assert "oops" in result["error"]
     assert "traceback" in result
+
+
+async def test_execute_python_restricted_mode(mock_bridge: MagicMock) -> None:
+    """Restricted mode is the default; response includes mode='restricted'."""
+    from blender_addon import server as server_mod
+    from blender_addon.tools import scripting
+
+    original = server_mod.execute_python_unrestricted
+    server_mod.execute_python_unrestricted = False
+    try:
+        mcp = make_mcp()
+        scripting.register(mcp)
+        result = await call(mcp, "execute_python", code="__result__ = 1 + 1")
+        assert result.get("status") == "ok"
+        assert result.get("result") == 2
+        assert result.get("mode") == "restricted"
+    finally:
+        server_mod.execute_python_unrestricted = original
+
+
+async def test_execute_python_unrestricted_mode(mock_bridge: MagicMock) -> None:
+    """When the YOLO flag is set, response includes mode='unrestricted'."""
+    from blender_addon import server as server_mod
+    from blender_addon.tools import scripting
+
+    original = server_mod.execute_python_unrestricted
+    server_mod.execute_python_unrestricted = True
+    try:
+        mcp = make_mcp()
+        scripting.register(mcp)
+        result = await call(mcp, "execute_python", code="__result__ = 'yolo'")
+        assert result.get("status") == "ok"
+        assert result.get("result") == "yolo"
+        assert result.get("mode") == "unrestricted"
+    finally:
+        server_mod.execute_python_unrestricted = original
+
+
+async def test_execute_python_restricted_allows_math_import(mock_bridge: MagicMock) -> None:
+    """Restricted mode allows importing the math module."""
+    from blender_addon import server as server_mod
+    from blender_addon.tools import scripting
+
+    original = server_mod.execute_python_unrestricted
+    server_mod.execute_python_unrestricted = False
+    try:
+        mcp = make_mcp()
+        scripting.register(mcp)
+        result = await call(mcp, "execute_python", code="import math; __result__ = math.pi")
+        assert result.get("status") == "ok"
+        assert abs(result.get("result") - 3.14159) < 0.001
+    finally:
+        server_mod.execute_python_unrestricted = original
+
+
+async def test_execute_python_restricted_allows_json(mock_bridge: MagicMock) -> None:
+    """Restricted mode allows importing json and serializing data."""
+    from blender_addon import server as server_mod
+    from blender_addon.tools import scripting
+
+    original = server_mod.execute_python_unrestricted
+    server_mod.execute_python_unrestricted = False
+    try:
+        mcp = make_mcp()
+        scripting.register(mcp)
+        code = 'import json; __result__ = json.dumps({"a": 1})'
+        result = await call(mcp, "execute_python", code=code)
+        assert result.get("status") == "ok"
+        assert result.get("result") == '{"a": 1}'
+    finally:
+        server_mod.execute_python_unrestricted = original
