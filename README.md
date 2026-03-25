@@ -90,8 +90,6 @@ Or without Hatch:
 zip -r blender_mcp_addon.zip blender_addon/
 ```
 
-This produces `blender_mcp_addon.zip`, which you can install via Blender's Preferences UI (see below).
-
 ---
 
 ## Installing and Activating in Blender
@@ -114,13 +112,6 @@ After enabling, the Blender Info bar (top of the screen) should show:
 
 ```
 Blender MCP Server registered, port=8400
-```
-
-You can also confirm in Blender's Python console:
-
-```python
-import bpy
-bpy.context.preferences.addons["blender_addon"].preferences.port  # → 8400
 ```
 
 ### Change the port (optional)
@@ -167,7 +158,6 @@ Add the following to `~/.claude/settings.json` (global) or `.claude/settings.jso
 }
 ```
 
-Replace `/absolute/path/to/blender-mcp/` with the actual path to the cloned repository.
 `launcher.py` will wait up to 60 seconds for Blender to become reachable, then time out.
 
 ### Verify the connection
@@ -184,114 +174,6 @@ curl -s -X POST http://localhost:8400/mcp \
 # stdio proxy round-trip (Option B only):
 echo '{"jsonrpc":"2.0","method":"tools/list","id":1}' | python launcher.py
 ```
-
----
-
-## LLM Self-Configuration
-
-> This section is written for LLM agents that need to register this MCP server for themselves
-> autonomously. Follow these steps in order.
-
-### Step 0 — Install prerequisites (if needed)
-
-Skip this step if Blender is already running with the add-on enabled (you can verify in Step 1).
-
-#### 0a — Install `mcp[cli]` into Blender's bundled Python
-
-The add-on runs inside Blender's own Python interpreter, so `mcp[cli]` must be installed there.
-
-**Find Blender's Python executable:**
-
-```bash
-# Windows (PowerShell) — adjust version numbers as needed
-ls "C:\Program Files\Blender Foundation\Blender*\*\python\bin\python.exe" 2>$null
-
-# macOS
-ls /Applications/Blender.app/Contents/Resources/*/python/bin/python3.*
-
-# Linux
-ls ~/blender-*/*/python/bin/python3.*
-```
-
-Alternatively, ask the user for the path if the above finds nothing or finds multiple versions.
-
-**Install `mcp[cli]` once the path is known:**
-
-```bash
-# Replace <blender-python> with the full path found above
-<blender-python> -m pip install "mcp[cli]"
-```
-
-**Verify:**
-
-```bash
-<blender-python> -c "import mcp; print('ok')"
-```
-
-After installation, the user must enable the add-on in Blender:
-**Edit → Preferences → Add-ons → search "Blender MCP Server" → enable checkbox.**
-This step requires user interaction and cannot be automated from the command line.
-
-#### 0b — Install system Python dependencies (stdio fallback only)
-
-Required only if using `launcher.py`. Skip if connecting via HTTP (Option A).
-
-```bash
-pip install httpx "mcp[cli]"
-```
-
-### Step 1 — Verify Blender is reachable
-
-```bash
-curl -s -X POST http://localhost:8400/mcp \
-  -H "Content-Type: application/json" \
-  -H "Accept: application/json, text/event-stream" \
-  -d '{"jsonrpc":"2.0","method":"initialize","id":1,"params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"probe","version":"0"}}}'
-```
-
-**Expected:** a response containing `"result"` with `serverInfo.name == "blender-mcp"`.
-**If the request fails or returns an error:** Blender is not running or the add-on is not enabled.
-Inform the user and stop — do not proceed with registration.
-
-### Step 2 — Register the server
-
-Choose the appropriate config location:
-
-| Scope | File | When to use |
-|-------|------|-------------|
-| This project only | `.mcp.json` in repo root | Preferred — already present in this repo |
-| All projects (global) | `~/.claude/settings.json` | When working outside this repo |
-
-The `.mcp.json` file in this repository already contains the correct entry:
-
-```json
-{
-  "mcpServers": {
-    "blender-mcp": {
-      "type": "http",
-      "url": "http://localhost:8400/mcp"
-    }
-  }
-}
-```
-
-If you are registering globally, merge the same `"blender-mcp"` entry into the `"mcpServers"`
-object in `~/.claude/settings.json` (create the object if it does not exist).
-
-### Step 3 — Confirm registration
-
-After writing the config, call `tools/list` to confirm the server responds:
-
-```bash
-curl -s -X POST http://localhost:8400/mcp \
-  -H "Content-Type: application/json" \
-  -H "Accept: application/json, text/event-stream" \
-  -H "mcp-session-id: <session-id-from-step-1>" \
-  -d '{"jsonrpc":"2.0","method":"tools/list","id":2,"params":{}}'
-```
-
-**Expected:** a list of 42 tools (or 43 with `execute_python` enabled) including `list_scenes`, `create_object`, `render_image`, etc.
-**If the tool count is wrong:** the add-on version may be outdated — inform the user.
 
 ---
 
@@ -327,78 +209,6 @@ The package must be installed into Blender's **own** Python, not the system Pyth
 
 ---
 
-## Development Setup
-
-### Running tests and lint locally
-
-Requires [Hatch](https://hatch.pypa.io/) (`pip install hatch`) or [uv](https://docs.astral.sh/uv/) (`pip install uv`).
-
-```bash
-hatch run check       # lint + typecheck + unit tests (full pre-commit check)
-hatch run lint        # ruff check only
-hatch run test        # unit tests only (no Blender required)
-hatch run coverage    # unit tests + coverage report
-hatch run test-e2e    # E2E tests (requires running Blender with add-on enabled)
-hatch run package     # build blender_mcp_addon.zip
-```
-
-Equivalent commands with uv:
-
-```bash
-uv run ruff check .
-uv run pytest tests/unit/ -v
-```
-
-### Releasing a new version
-
-Releases are automated via GitHub Actions. To cut a release:
-
-```bash
-git tag v0.2.0
-git push origin v0.2.0
-```
-
-The release pipeline will:
-1. Run lint + typecheck + unit tests (gate)
-2. Patch `bl_info["version"]` and `pyproject.toml` from the tag
-3. Build `blender_mcp_addon.zip`
-4. Create a GitHub Release with the zip as a downloadable artifact
-
-### Symlink for active development
-
-For active development, use a symlink instead of reinstalling the zip after every change.
-
-#### Windows
-
-Run once in an elevated (Administrator) command prompt:
-
-```cmd
-mklink /D "%APPDATA%\Blender Foundation\Blender\4.5\scripts\addons\blender_addon" "E:\path\to\blender-mcp\blender_addon"
-```
-
-Replace `E:\path\to\blender-mcp` with the actual repository path and `4.5` with your Blender version.
-
-#### Linux / macOS
-
-```bash
-ln -s /path/to/blender-mcp/blender_addon \
-  ~/.config/blender/4.5/scripts/addons/blender_addon   # Linux
-  # or
-  ~/Library/Application\ Support/Blender/4.5/scripts/addons/blender_addon  # macOS
-```
-
-#### Reloading after changes
-
-After editing Python source files, reload the add-on in Blender without restarting:
-
-1. **Edit → Preferences → Add-ons** → find "Blender MCP Server"
-2. Uncheck the add-on (unregisters bridge + server)
-3. Check it again (re-registers with the updated code)
-
-> **Note:** Blender caches imported modules. For deep module changes you may need to fully restart Blender.
-
----
-
 ## Available Tools
 
 | Category | Tools |
@@ -413,52 +223,14 @@ After editing Python source files, reload the add-on in Blender without restarti
 | Lighting | `configure_light` |
 | Camera | `set_active_camera`, `look_at` |
 | World | `set_world_settings` |
-| Scripting (opt-in) | `execute_python` — requires enabling in add-on preferences (see [Security](#security-execute_python-tool)); two modes: restricted (default) and unrestricted (YOLO) |
+| Scripting (opt-in) | `execute_python` — see [Security](docs/security.md) for modes and risks |
 
 ---
 
-## Security: `execute_python` Tool
+## Further Reading
 
-The `execute_python` tool lets connected MCP clients run Python code inside Blender. Because it grants powerful capabilities, it is **disabled by default** and requires explicit opt-in. When enabled, it operates in one of two modes.
-
-### Restricted Mode (default)
-
-When you enable `execute_python`, it starts in **restricted mode** — a sandboxed environment that limits what connected clients can do.
-
-**Allowed in restricted mode:**
-- Blender API: `bpy`, `mathutils`, `Vector`, `Matrix`, `Euler`, `Quaternion`
-- Safe standard-library modules: `math`, `json`, `re`, `collections`, `itertools`, `functools`, `copy`, `random`, `colorsys`, `datetime`, `enum`, `typing`, `dataclasses`
-- Safe built-in functions: `len`, `range`, `print`, `list`, `dict`, `type`, `isinstance`, `getattr`, etc.
-
-**Blocked in restricted mode:**
-- Filesystem access: `open`, the `os`, `shutil`, `pathlib`, and `tempfile` modules
-- Network access: the `socket`, `http`, `urllib`, `ftplib`, and `smtplib` modules
-- Process execution: the `subprocess` and `multiprocessing` modules, and OS process-spawning functions
-- Low-level Python access: `ctypes`, `importlib`
-- Dangerous built-ins: `globals`, `locals`, `compile`, `breakpoint`, `exit`, `input`, `help`, `memoryview`
-
-**Important limitation:** Restricted mode is a **safety net, not a security boundary**. Python's dynamic nature makes it impossible to fully prevent all sandbox escape vectors. A determined attacker could potentially use dynamic Python features to circumvent restrictions. This mode protects against **accidental** dangerous operations — it is appropriate when you trust the AI assistant's intent but want to limit the blast radius of mistakes.
-
-### Unrestricted Mode (YOLO)
-
-> **WARNING: This mode grants connected MCP clients full, unrestricted access to your system.**
-
-Unrestricted mode removes all sandbox restrictions. Code runs with the same permissions as Blender itself — identical to typing code directly into Blender's built-in Python console.
-
-**What an unrestricted client can do:**
-- Read, modify, or delete any file on your system
-- Make arbitrary network connections
-- Spawn processes and execute shell commands
-- Install software or modify system configuration
-- Access environment variables, credentials, or secrets stored on disk
-- Anything else your user account can do
-
-**When to use it:** Only enable unrestricted mode when you fully trust ALL connected MCP clients and explicitly need capabilities that restricted mode blocks (e.g., reading/writing project files from within a Blender script).
-
-### How to Enable
-
-1. Open **Edit → Preferences → Add-ons → Blender MCP Server**
-2. Check **"Allow execute_python Tool (DANGEROUS)"** to enable the tool in restricted mode (default)
-3. _(Optional)_ Check **"Unrestricted Mode (YOLO) — EXTREMELY DANGEROUS"** to remove all sandbox restrictions
-
-The execution mode can be switched at runtime without restarting Blender. The tool response always includes a `"mode"` field (`"restricted"` or `"unrestricted"`) so clients know which context they are operating in.
+| Topic | File |
+|---|---|
+| Security & `execute_python` modes | [docs/security.md](docs/security.md) |
+| Development setup, testing, releasing | [docs/development.md](docs/development.md) |
+| LLM agent self-configuration guide | [docs/llm-setup.md](docs/llm-setup.md) |
