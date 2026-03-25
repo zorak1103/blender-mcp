@@ -2,6 +2,7 @@
 name = "blender-mcp-launcher"
 version = "0.1.0"
 requires-python = ">=3.11"
+license = {file = "LICENSE.txt"}
 dependencies = [
     "mcp[cli]>=1.0",
     "httpx>=0.27",
@@ -34,3 +35,20 @@ select = ["E", "F", "I", "UP"]
 python_version = "3.11"
 strict = true
 ignore_missing_imports = true
+
+[tool.hatch.envs.default]
+features = ["test"]
+dependencies = [
+    "ruff",
+    "mypy",
+]
+
+[tool.hatch.envs.default.scripts]
+lint = "ruff check {args:.}"
+typecheck = "mypy blender_addon/ launcher.py {args}"
+test = "pytest tests/unit/ -v {args}"
+test-all = "pytest tests/ -v {args}"
+test-e2e = "pytest tests/e2e/ -v -m e2e {args}"
+coverage = "pytest tests/unit/ -v --cov=blender_addon --cov=launcher --cov-report=term-missing {args}"
+check = ["lint", "typecheck", "test"]
+package = "python -c \"import shutil; shutil.make_archive('blender_mcp_addon', 'zip', '.', 'blender_addon')\""

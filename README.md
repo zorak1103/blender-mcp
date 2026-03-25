@@ -1,5 +1,13 @@
 # blender-mcp
 
+[![CI](https://github.com/zorak1103/blender-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/zorak1103/blender-mcp/actions/workflows/ci.yml)
+[![GitHub Release](https://img.shields.io/github/v/release/zorak1103/blender-mcp)](https://github.com/zorak1103/blender-mcp/releases/latest)
+[![Python](https://img.shields.io/badge/python-3.11+-3776ab?logo=python&logoColor=white)](https://www.python.org/)
+[![Blender](https://img.shields.io/badge/Blender-4.0+-ea7600?logo=blender&logoColor=white)](https://www.blender.org/)
+[![MCP](https://img.shields.io/badge/MCP-compatible-6750a4)](https://modelcontextprotocol.io/)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![License: GPL v3](https://img.shields.io/github/license/zorak1103/blender-mcp)](https://github.com/zorak1103/blender-mcp/blob/master/LICENSE.txt)
+
 A [Model Context Protocol](https://modelcontextprotocol.io/) server that lets LLMs such as Claude control Blender — creating scenes, manipulating objects, assigning materials, configuring shader nodes, applying modifiers, setting keyframes, and rendering.
 
 ```
@@ -54,21 +62,31 @@ Then run:
 
 ## Getting the Add-on
 
-### Option A — Clone the repository
+### Option A — Download a release (recommended)
+
+Download `blender_mcp_addon.zip` from the [latest GitHub Release](https://github.com/zorak1103/blender-mcp/releases/latest) and install it directly in Blender (see [Installing and Activating in Blender](#installing-and-activating-in-blender)).
+
+### Option B — Clone the repository
 
 ```bash
-git clone https://github.com/your-org/blender-mcp.git
+git clone https://github.com/zorak1103/blender-mcp.git
 cd blender-mcp
 ```
 
 The add-on directory is `blender_addon/`. No build or compilation step is needed — Blender add-ons are plain Python packages.
 
-### Option B — Create an installable zip
+### Option C — Build the zip locally
 
-Blender can install add-ons from a zip file containing the package directory:
+Blender can install add-ons from a zip file containing the package directory.
+Requires [Hatch](https://hatch.pypa.io/) (`pip install hatch`):
 
 ```bash
-# From the repository root:
+hatch run package
+```
+
+Or without Hatch:
+
+```bash
 zip -r blender_mcp_addon.zip blender_addon/
 ```
 
@@ -311,9 +329,46 @@ The package must be installed into Blender's **own** Python, not the system Pyth
 
 ## Development Setup
 
+### Running tests and lint locally
+
+Requires [Hatch](https://hatch.pypa.io/) (`pip install hatch`) or [uv](https://docs.astral.sh/uv/) (`pip install uv`).
+
+```bash
+hatch run check       # lint + typecheck + unit tests (full pre-commit check)
+hatch run lint        # ruff check only
+hatch run test        # unit tests only (no Blender required)
+hatch run coverage    # unit tests + coverage report
+hatch run test-e2e    # E2E tests (requires running Blender with add-on enabled)
+hatch run package     # build blender_mcp_addon.zip
+```
+
+Equivalent commands with uv:
+
+```bash
+uv run ruff check .
+uv run pytest tests/unit/ -v
+```
+
+### Releasing a new version
+
+Releases are automated via GitHub Actions. To cut a release:
+
+```bash
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+The release pipeline will:
+1. Run lint + typecheck + unit tests (gate)
+2. Patch `bl_info["version"]` and `pyproject.toml` from the tag
+3. Build `blender_mcp_addon.zip`
+4. Create a GitHub Release with the zip as a downloadable artifact
+
+### Symlink for active development
+
 For active development, use a symlink instead of reinstalling the zip after every change.
 
-### Windows
+#### Windows
 
 Run once in an elevated (Administrator) command prompt:
 
@@ -323,7 +378,7 @@ mklink /D "%APPDATA%\Blender Foundation\Blender\4.5\scripts\addons\blender_addon
 
 Replace `E:\path\to\blender-mcp` with the actual repository path and `4.5` with your Blender version.
 
-### Linux / macOS
+#### Linux / macOS
 
 ```bash
 ln -s /path/to/blender-mcp/blender_addon \
@@ -332,7 +387,7 @@ ln -s /path/to/blender-mcp/blender_addon \
   ~/Library/Application\ Support/Blender/4.5/scripts/addons/blender_addon  # macOS
 ```
 
-### Reloading after changes
+#### Reloading after changes
 
 After editing Python source files, reload the add-on in Blender without restarting:
 
