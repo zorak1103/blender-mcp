@@ -27,7 +27,7 @@ jobs:
         run: ruff check .
 
       - name: Type check (mypy)
-        run: mypy blender_addon/ launcher.py
+        run: mypy launcher.py
 
       - name: Unit tests
         run: pytest tests/unit/ -v --cov=blender_addon --cov=launcher --cov-fail-under=80

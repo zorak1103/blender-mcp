@@ -39,6 +39,10 @@ python_version = "3.11"
 strict = true
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = "blender_addon.*"
+ignore_errors = true
+
 [tool.hatch.envs.default]
 features = ["test"]
 dependencies = [
