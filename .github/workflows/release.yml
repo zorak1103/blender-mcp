@@ -29,7 +29,7 @@ jobs:
         run: zip -r blender_mcp_addon.zip blender_addon/
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: blender_mcp_addon.zip
           generate_release_notes: true
