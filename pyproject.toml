@@ -33,7 +33,12 @@ line-length = 100
 exclude = ["audit", "scripts"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP"]
+select = ["E", "F", "I", "UP", "S"]
+
+[tool.ruff.lint.per-file-ignores]
+# S101: assert is idiomatic in pytest
+# S108: /tmp paths in tests are deliberate (mock values or out-of-home rejection tests)
+"tests/**" = ["S101", "S108"]
 
 [tool.mypy]
 python_version = "3.11"
