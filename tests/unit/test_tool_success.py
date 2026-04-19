@@ -7,6 +7,7 @@ a configured mock_bpy. This brings tool module coverage from ~30% to ~80%+.
 from __future__ import annotations
 
 import json
+import os
 from unittest.mock import MagicMock
 
 import pytest
@@ -526,8 +527,9 @@ async def test_render_image_success(mock_bridge: MagicMock, mock_bpy: MagicMock)
 
     mcp = make_mcp()
     render.register(mcp)
-    result = await call(mcp, "render_image", filepath="/tmp/test.png")
-    assert result["filepath"] == "/tmp/test.png"
+    home_path = os.path.join(os.path.expanduser("~"), "test.png")
+    result = await call(mcp, "render_image", filepath=home_path)
+    assert result["filepath"] == home_path
     assert result["format"] == "PNG"
 
 
@@ -542,8 +544,9 @@ async def test_screenshot_viewport_success(mock_bridge: MagicMock, mock_bpy: Mag
 
     mcp = make_mcp()
     render.register(mcp)
-    result = await call(mcp, "screenshot_viewport", filepath="/tmp/viewport.png")
-    assert result["filepath"] == "/tmp/viewport.png"
+    home_path = os.path.join(os.path.expanduser("~"), "viewport.png")
+    result = await call(mcp, "screenshot_viewport", filepath=home_path)
+    assert result["filepath"] == home_path
     assert result["area_type"] == "VIEW_3D"
 
 
@@ -554,7 +557,8 @@ async def test_screenshot_viewport_no_view3d(mock_bridge: MagicMock, mock_bpy: M
 
     mcp = make_mcp()
     render.register(mcp)
-    result = await call(mcp, "screenshot_viewport", filepath="/tmp/viewport.png")
+    home_path = os.path.join(os.path.expanduser("~"), "viewport.png")
+    result = await call(mcp, "screenshot_viewport", filepath=home_path)
     assert "error" in result
 
 
