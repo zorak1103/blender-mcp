@@ -8,6 +8,7 @@ so validation errors are returned as JSON {"error": "...", "tool": "..."}.
 from __future__ import annotations
 
 import json
+import os
 from unittest.mock import MagicMock
 
 # ---------------------------------------------------------------------------
@@ -307,7 +308,76 @@ async def test_render_image_path_traversal(mock_bridge: MagicMock) -> None:
     render.register(mcp)
     result = await call(mcp, "render_image", filepath="../../etc/passwd")
     assert is_error(result)
-    assert ".." in result["error"]
+    assert "outside" in result["error"].lower() or "allowed" in result["error"].lower()
+
+
+async def test_render_image_absolute_path_outside_home(mock_bridge: MagicMock) -> None:
+    from blender_addon.tools import render
+
+    mcp = make_mcp()
+    render.register(mcp)
+    result = await call(mcp, "render_image", filepath="/etc/passwd")
+    assert is_error(result)
+    assert "outside" in result["error"].lower()
+
+
+async def test_render_image_blender_relative_path_accepted(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    scene = MagicMock()
+    scene.render.resolution_x = 1920
+    scene.render.resolution_y = 1080
+    mock_bpy.context.scene = scene
+
+    from blender_addon.tools import render
+
+    mcp = make_mcp()
+    render.register(mcp)
+    result = await call(mcp, "render_image", filepath="//output.png")
+    assert "error" not in result
+
+
+async def test_render_image_home_subdir_accepted(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    scene = MagicMock()
+    scene.render.resolution_x = 1920
+    scene.render.resolution_y = 1080
+    mock_bpy.context.scene = scene
+
+    from blender_addon.tools import render
+
+    mcp = make_mcp()
+    render.register(mcp)
+    home_path = os.path.join(os.path.expanduser("~"), "renders", "output.png")
+    result = await call(mcp, "render_image", filepath=home_path)
+    assert "error" not in result
+
+
+async def test_screenshot_viewport_absolute_path_outside_home(
+    mock_bridge: MagicMock,
+) -> None:
+    from blender_addon.tools import render
+
+    mcp = make_mcp()
+    render.register(mcp)
+    result = await call(mcp, "screenshot_viewport", filepath="/tmp/vuln.png")
+    assert is_error(result)
+    assert "outside" in result["error"].lower()
+
+
+async def test_set_render_settings_absolute_path_outside_home(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    mock_bpy.context.scene.render.engine = "CYCLES"
+
+    from blender_addon.tools import render
+
+    mcp = make_mcp()
+    render.register(mcp)
+    result = await call(mcp, "set_render_settings", output_path="/etc/cron.d/evil")
+    assert is_error(result)
+    assert "outside" in result["error"].lower()
 
 
 async def test_set_render_settings_invalid_engine(

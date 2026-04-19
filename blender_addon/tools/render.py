@@ -15,13 +15,38 @@ logger = logging.getLogger(__name__)
 
 _VALID_ENGINES = {"CYCLES", "BLENDER_EEVEE_NEXT", "BLENDER_WORKBENCH"}
 
+# Approved root directory for render output paths. All non-Blender-relative paths
+# must resolve to a location inside this directory. Defaults to the user home
+# directory; can be tightened via a Blender add-on preference in a future change.
+_ALLOWED_OUTPUT_BASE: str = os.path.expanduser("~")
+
 
 def _validate_path(path: str, param: str) -> None:
-    """Reject empty paths and path traversal components."""
+    """Reject empty paths and paths outside the allowed output directory.
+
+    Paths starting with '//' are Blender-relative (resolved by Blender relative to
+    the .blend file location) and are allowed unconditionally.  All other paths are
+    resolved with os.path.realpath() and must fall inside _ALLOWED_OUTPUT_BASE.
+    """
     if not path:
         raise ValueError(f"{param} must not be empty")
-    if ".." in os.path.normpath(path).split(os.sep):
-        raise ValueError(f"{param} must not contain '..' path traversal components")
+    if path.startswith("//"):
+        return  # Blender-relative path — Blender resolves it against the .blend file
+    resolved = os.path.realpath(os.path.expanduser(path))
+    approved = os.path.realpath(_ALLOWED_OUTPUT_BASE)
+    try:
+        common = os.path.commonpath([resolved, approved])
+    except ValueError:
+        # os.path.commonpath raises ValueError on Windows when paths are on
+        # different drives (e.g. C:\ vs D:\).
+        raise ValueError(
+            f"{param}: path is outside the allowed output directory ({_ALLOWED_OUTPUT_BASE!r})"
+        )
+    if common != approved:
+        raise ValueError(
+            f"{param}: path {path!r} is outside the allowed output directory"
+            f" ({_ALLOWED_OUTPUT_BASE!r})"
+        )
 
 
 def register(mcp) -> None:
