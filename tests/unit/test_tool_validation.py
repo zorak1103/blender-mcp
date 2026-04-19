@@ -302,11 +302,19 @@ async def test_render_image_empty_filepath(mock_bridge: MagicMock) -> None:
 
 
 async def test_render_image_path_traversal(mock_bridge: MagicMock) -> None:
+    # Construct a path that is always outside ~ regardless of CWD or home location.
+    # dirname(realpath(~)) is the parent of the home directory (e.g. /home on Linux,
+    # C:\Users on Windows), so any path there is guaranteed outside _ALLOWED_OUTPUT_BASE.
+    outside_home = os.path.join(
+        os.path.dirname(os.path.realpath(os.path.expanduser("~"))),
+        "etc",
+        "outside.txt",
+    )
     from blender_addon.tools import render
 
     mcp = make_mcp()
     render.register(mcp)
-    result = await call(mcp, "render_image", filepath="../../etc/passwd")
+    result = await call(mcp, "render_image", filepath=outside_home)
     assert is_error(result)
     assert "outside" in result["error"].lower() or "allowed" in result["error"].lower()
 
