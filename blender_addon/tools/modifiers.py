@@ -13,6 +13,34 @@ from ._helpers import run_tool
 
 logger = logging.getLogger(__name__)
 
+# Numeric values are clamped to this magnitude to prevent RAM exhaustion
+# (e.g. Subdivision Surface levels=30 would allocate ~2^30 faces).
+_MAX_NUMERIC_VALUE: float = 1e6
+
+
+def _apply_modifier_settings(mod: Any, settings: dict[str, Any]) -> None:
+    """Apply caller-supplied settings to a modifier with safety guards.
+
+    Guards:
+    - Dunder keys (``__*``) are silently rejected to block internal-attribute writes.
+    - Unknown keys are logged as warnings and skipped (existing behaviour).
+    - Numeric (int/float) values are clamped to [-_MAX_NUMERIC_VALUE, _MAX_NUMERIC_VALUE]
+      to prevent resource-exhaustion via extreme values (e.g. subdivision levels=30).
+    """
+    for key, val in settings.items():
+        if key.startswith("__"):
+            logger.warning(
+                "Modifier settings: rejecting dunder key %r on modifier '%s'",
+                key, mod.type,
+            )
+            continue
+        if not hasattr(mod, key):
+            logger.warning("Modifier '%s' has no attribute '%s'", mod.type, key)
+            continue
+        if isinstance(val, (int, float)) and not isinstance(val, bool):
+            val = max(-_MAX_NUMERIC_VALUE, min(_MAX_NUMERIC_VALUE, val))
+        setattr(mod, key, val)
+
 
 def register(mcp) -> None:
     """Register all modifier tools onto the FastMCP instance."""
@@ -61,11 +89,7 @@ def register(mcp) -> None:
             if obj is None:
                 raise ValueError(f"Object '{object_name}' not found")
             mod = obj.modifiers.new(name=modifier_type.title(), type=modifier_type.upper())
-            for key, val in settings.items():
-                if hasattr(mod, key):
-                    setattr(mod, key, val)
-                else:
-                    logger.warning("Modifier '%s' has no attribute '%s'", mod.type, key)
+            _apply_modifier_settings(mod, settings)
             return {"name": mod.name, "type": mod.type}
 
         return await run_tool("add_modifier", _do)
@@ -117,13 +141,11 @@ def register(mcp) -> None:
                 raise ValueError(
                     f"Modifier '{modifier_name}' not found on '{object_name}'"
                 )
-            updated: dict[str, Any] = {}
-            for key, val in settings.items():
-                if hasattr(mod, key):
-                    setattr(mod, key, val)
-                    updated[key] = val
-                else:
-                    logger.warning("Modifier '%s' has no attribute '%s'", mod.type, key)
+            _apply_modifier_settings(mod, settings)
+            updated = {
+                k: v for k, v in settings.items()
+                if not k.startswith("__") and hasattr(mod, k)
+            }
             return {"modifier": modifier_name, "updated": updated}
 
         return await run_tool("configure_modifier", _do)
@@ -180,11 +202,7 @@ def register(mcp) -> None:
                     if obj is None:
                         raise ValueError(f"Object '{name}' not found")
                     mod = obj.modifiers.new(name=modifier_type.title(), type=modifier_type.upper())
-                    for key, val in settings.items():
-                        if hasattr(mod, key):
-                            setattr(mod, key, val)
-                        else:
-                            logger.warning("Modifier '%s' has no attribute '%s'", mod.type, key)
+                    _apply_modifier_settings(mod, settings)
                     added.append({"object": name, "modifier": mod.name, "type": mod.type})
                 except Exception as exc:
                     errors.append({"object": name, "reason": str(exc)})

@@ -1182,3 +1182,127 @@ async def test_execute_python_restricted_blocks_dunder_import(mock_bridge: Magic
 async def test_execute_python_restricted_reports_mode(mock_bridge: MagicMock) -> None:
     result = await _call_restricted("__result__ = 42", mock_bridge)
     assert result.get("mode") == "restricted"
+
+
+# ---------------------------------------------------------------------------
+# modifier settings guards (_apply_modifier_settings)
+# ---------------------------------------------------------------------------
+
+
+def test_apply_modifier_settings_rejects_dunder_keys() -> None:
+    from blender_addon.tools.modifiers import _apply_modifier_settings
+
+    # Use a real object so we can confirm __class__ was NOT overwritten
+    class FakeMod:
+        type = "SUBSURF"
+        levels = 1
+
+    mod = FakeMod()
+    original_class = mod.__class__
+    _apply_modifier_settings(mod, {"__class__": int, "__dict__": {}})
+    assert mod.__class__ is original_class  # dunder write was blocked
+
+
+def test_apply_modifier_settings_clamps_large_int() -> None:
+    from blender_addon.tools.modifiers import _MAX_NUMERIC_VALUE, _apply_modifier_settings
+
+    class FakeMod:
+        type = "SUBSURF"
+        levels = 1
+
+    mod = FakeMod()
+    _apply_modifier_settings(mod, {"levels": 2_000_000_000})
+    assert mod.levels == _MAX_NUMERIC_VALUE
+
+
+def test_apply_modifier_settings_clamps_large_float() -> None:
+    from blender_addon.tools.modifiers import _MAX_NUMERIC_VALUE, _apply_modifier_settings
+
+    class FakeMod:
+        type = "SUBSURF"
+        width = 0.5
+
+    mod = FakeMod()
+    _apply_modifier_settings(mod, {"width": 1e12})
+    assert mod.width == _MAX_NUMERIC_VALUE
+
+
+def test_apply_modifier_settings_allows_normal_int() -> None:
+    from blender_addon.tools.modifiers import _apply_modifier_settings
+
+    class FakeMod:
+        type = "SUBSURF"
+        levels = 1
+
+    mod = FakeMod()
+    _apply_modifier_settings(mod, {"levels": 3})
+    assert mod.levels == 3
+
+
+def test_apply_modifier_settings_allows_bool_unchanged() -> None:
+    from blender_addon.tools.modifiers import _apply_modifier_settings
+
+    class FakeMod:
+        type = "SUBSURF"
+        use_custom_normals = False
+
+    mod = FakeMod()
+    _apply_modifier_settings(mod, {"use_custom_normals": True})
+    assert mod.use_custom_normals is True  # bool not clamped
+
+
+def test_apply_modifier_settings_skips_unknown_keys() -> None:
+    from blender_addon.tools.modifiers import _apply_modifier_settings
+
+    class FakeMod:
+        type = "SUBSURF"
+
+    mod = FakeMod()
+    _apply_modifier_settings(mod, {"nonexistent_key": 42})
+    assert not hasattr(mod, "nonexistent_key")
+
+
+async def test_add_modifier_dunder_key_rejected(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    mod = MagicMock()
+    mod.name = 'Subsurf'
+    mod.type = 'SUBSURF'
+    obj = MagicMock()
+    obj.modifiers.new.return_value = mod
+    mock_bpy.data.objects.get.return_value = obj
+
+    from blender_addon.tools import modifiers
+
+    mcp = make_mcp()
+    modifiers.register(mcp)
+    # Dunder key should not reach setattr
+    result = await call(mcp, 'add_modifier',
+                        object_name='Cube', modifier_type='SUBSURF',
+                        settings={'__class__': 'evil'})
+    assert 'error' not in result
+    # The mock should not have had __class__ set via setattr
+    # (MagicMock does not record dunder setattr by default, so we just check no exception)
+
+
+async def test_add_modifier_extreme_levels_clamped(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+
+    mod = MagicMock()
+    mod.name = 'Subsurf'
+    mod.type = 'SUBSURF'
+    mod.levels = 1
+    obj = MagicMock()
+    obj.modifiers.new.return_value = mod
+    mock_bpy.data.objects.get.return_value = obj
+
+    from blender_addon.tools import modifiers
+
+    mcp = make_mcp()
+    modifiers.register(mcp)
+    # levels=2000000000 should be clamped to _MAX_NUMERIC_VALUE, not raise
+    result = await call(mcp, 'add_modifier',
+                        object_name='Cube', modifier_type='SUBSURF',
+                        settings={'levels': 2_000_000_000})
+    assert 'error' not in result
