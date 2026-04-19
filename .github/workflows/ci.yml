@@ -23,11 +23,15 @@ jobs:
       - name: Install dependencies
         run: uv pip install ".[test]" ruff mypy --system
 
+      - name: Install osv-scanner
+        run: |
+          curl -sSfL \
+            "https://github.com/google/osv-scanner/releases/download/v2.3.5/osv-scanner_linux_amd64" \
+            -o /usr/local/bin/osv-scanner
+          chmod +x /usr/local/bin/osv-scanner
+
       - name: Scan dependencies for CVEs
-        uses: google/osv-scanner-action@c51854704019a247608d928f370c98740469d4b5 # v2.3.5
-        with:
-          scan-args: |-
-            --lockfile=uv.lock
+        run: osv-scanner scan source --lockfile uv.lock
 
       - name: Lint (ruff)
         run: ruff check .
