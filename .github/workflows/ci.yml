@@ -23,6 +23,9 @@ jobs:
       - name: Install dependencies
         run: uv pip install ".[test]" ruff mypy --system
 
+      - name: Scan dependencies for CVEs
+        run: osv-scanner scan source --lockfile uv.lock
+
       - name: Lint (ruff)
         run: ruff check .
 
