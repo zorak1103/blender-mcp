@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pathlib
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -16,8 +17,14 @@ def test_setup_creates_fastmcp_instance() -> None:
 
     mock_mcp = MagicMock()
     with patch("blender_addon.server.FastMCP", return_value=mock_mcp) as mock_cls:
-        server_mod.setup(port=8400)
-        mock_cls.assert_called_once_with("blender-mcp", host="127.0.0.1", port=8400)
+        with patch("blender_addon.server.get_or_create_token", return_value="tok"):
+            server_mod.setup(port=8400)
+        call_kwargs = mock_cls.call_args
+        assert call_kwargs.args[0] == "blender-mcp"
+        assert call_kwargs.kwargs["host"] == "127.0.0.1"
+        assert call_kwargs.kwargs["port"] == 8400
+        assert call_kwargs.kwargs.get("token_verifier") is not None
+        assert call_kwargs.kwargs.get("auth") is not None
     assert server_mod.mcp is mock_mcp
 
 
@@ -26,9 +33,10 @@ def test_setup_calls_register_all() -> None:
 
     mock_mcp = MagicMock()
     with patch("blender_addon.server.FastMCP", return_value=mock_mcp):
-        with patch("blender_addon.server.register_all") as mock_reg:
-            server_mod.setup(port=9000)
-            mock_reg.assert_called_once_with(mock_mcp, allow_execute_python=False)
+        with patch("blender_addon.server.get_or_create_token", return_value="tok"):
+            with patch("blender_addon.server.register_all") as mock_reg:
+                server_mod.setup(port=9000)
+                mock_reg.assert_called_once_with(mock_mcp, allow_execute_python=False)
 
 
 def test_start_raises_if_setup_not_called() -> None:
@@ -132,3 +140,66 @@ def test_tools_register_all(mock_bpy: MagicMock) -> None:
     mcp = MagicMock()
     # register_all should call each module's register(mcp) without raising
     register_all(mcp)
+
+
+# ---------------------------------------------------------------------------
+# token management
+# ---------------------------------------------------------------------------
+
+
+def test_get_or_create_token_creates_file(tmp_path: pathlib.Path) -> None:
+    import sys
+
+    from blender_addon import server as server_mod
+
+    token_path = tmp_path / "blender-mcp" / "token"
+    with patch.object(server_mod, "TOKEN_PATH", token_path):
+        token = server_mod.get_or_create_token()
+    assert token_path.exists()
+    assert len(token) == 64  # secrets.token_hex(32) produces 64 hex chars
+    if sys.platform != "win32":
+        assert token_path.stat().st_mode & 0o777 == 0o600
+
+
+def test_get_or_create_token_returns_existing(tmp_path: pathlib.Path) -> None:
+    from blender_addon import server as server_mod
+
+    token_path = tmp_path / "blender-mcp" / "token"
+    token_path.parent.mkdir(parents=True)
+    token_path.write_text("existing-token", encoding="ascii")
+
+    with patch.object(server_mod, "TOKEN_PATH", token_path):
+        assert server_mod.get_or_create_token() == "existing-token"
+
+
+async def test_static_token_verifier_accepts_correct_token() -> None:
+    import sys
+
+    from blender_addon import server as server_mod
+
+    # Temporarily swap the conftest MagicMock with the real mcp auth module so
+    # _StaticTokenVerifier uses a concrete AccessToken, not a MagicMock.
+    stub_mods = {
+        k: sys.modules.pop(k)
+        for k in list(sys.modules)
+        if k.startswith("mcp.server.auth") or k in ("mcp.server", "mcp")
+    }
+    try:
+        import importlib
+        real_bearer = importlib.import_module("mcp.server.auth.middleware.bearer_auth")
+        server_mod.AccessToken = real_bearer.AccessToken  # type: ignore[attr-defined]
+        verifier = server_mod._StaticTokenVerifier("secret")
+        result = await verifier.verify_token("secret")
+    finally:
+        sys.modules.update(stub_mods)
+
+    assert result is not None
+    assert result.client_id == "blender-mcp-local"
+
+
+async def test_static_token_verifier_rejects_wrong_token() -> None:
+    from blender_addon.server import _StaticTokenVerifier
+
+    verifier = _StaticTokenVerifier("secret")
+    result = await verifier.verify_token("wrong")
+    assert result is None

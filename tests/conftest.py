@@ -78,7 +78,16 @@ if "mathutils" not in sys.modules:
     sys.modules["mathutils"] = _mathutils_mock  # type: ignore[assignment]
 
 # mcp is a Blender-side dependency; stub it so server.py can be imported.
-for _mod in ("mcp", "mcp.server", "mcp.server.fastmcp"):
+# Include auth submodules needed by blender_addon.server's top-level imports.
+for _mod in (
+    "mcp",
+    "mcp.server",
+    "mcp.server.fastmcp",
+    "mcp.server.auth",
+    "mcp.server.auth.middleware",
+    "mcp.server.auth.middleware.bearer_auth",
+    "mcp.server.auth.settings",
+):
     if _mod not in sys.modules:
         sys.modules[_mod] = MagicMock(name=_mod)  # type: ignore[assignment]
 

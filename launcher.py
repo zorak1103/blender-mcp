@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import pathlib
 import sys
 
 import httpx
@@ -30,14 +31,27 @@ BLENDER_MCP_URL = "http://localhost:8400/mcp"
 RETRY_INTERVAL = 1.0   # seconds between connection attempts
 RETRY_TIMEOUT = 60.0   # total seconds to wait for Blender to become ready
 
+# Must match TOKEN_PATH in blender_addon/server.py
+_TOKEN_PATH = pathlib.Path.home() / ".config" / "blender-mcp" / "token"
 
-async def wait_for_blender() -> None:
+
+def _read_token() -> str | None:
+    """Read the shared-secret token written by the Blender add-on, if it exists."""
+    try:
+        return _TOKEN_PATH.read_text(encoding="ascii").strip()
+    except OSError:
+        return None
+
+
+async def wait_for_blender(auth_headers: dict[str, str]) -> None:
     """Poll the Blender MCP endpoint until it responds or the timeout is exceeded."""
     elapsed = 0.0
     async with httpx.AsyncClient() as client:
         while elapsed < RETRY_TIMEOUT:
             try:
-                response = await client.get(BLENDER_MCP_URL, timeout=5.0)
+                response = await client.get(
+                    BLENDER_MCP_URL, headers=auth_headers, timeout=5.0
+                )
                 if response.status_code < 500:
                     logger.info("Blender MCP server is ready (status %d)", response.status_code)
                     return
@@ -52,13 +66,15 @@ async def wait_for_blender() -> None:
     )
 
 
-async def proxy_request(client: httpx.AsyncClient, line: bytes) -> bytes:
+async def proxy_request(
+    client: httpx.AsyncClient, line: bytes, auth_headers: dict[str, str]
+) -> bytes:
     """POST a raw JSON-RPC line to the Blender MCP server and return the response body."""
     try:
         response = await client.post(
             BLENDER_MCP_URL,
             content=line,
-            headers={"Content-Type": "application/json"},
+            headers={"Content-Type": "application/json", **auth_headers},
             timeout=60.0,
         )
         response.raise_for_status()
@@ -75,7 +91,18 @@ async def proxy_request(client: httpx.AsyncClient, line: bytes) -> bytes:
 
 async def main() -> None:
     """Main event loop: wait for Blender, then proxy stdin → HTTP → stdout."""
-    await wait_for_blender()
+    token = _read_token()
+    auth_headers: dict[str, str] = (
+        {"Authorization": f"Bearer {token}"} if token else {}
+    )
+    if not token:
+        logger.warning(
+            "No token found at %s — requests will be sent without authentication. "
+            "Start Blender with the add-on enabled to generate a token.",
+            _TOKEN_PATH,
+        )
+
+    await wait_for_blender(auth_headers)
 
     loop = asyncio.get_event_loop()
     async with httpx.AsyncClient() as client:
@@ -86,7 +113,7 @@ async def main() -> None:
             line = line.rstrip(b"\n")
             if not line:
                 continue
-            response = await proxy_request(client, line)
+            response = await proxy_request(client, line, auth_headers)
             sys.stdout.buffer.write(response + b"\n")
             sys.stdout.buffer.flush()
 
