@@ -12,6 +12,122 @@ from ._helpers import run_tool
 
 logger = logging.getLogger(__name__)
 
+#: Allowed shader node type strings for add_shader_node.
+#: Covers the full documented ShaderNode* set available in Blender's
+#: material node editor. Internal, compositor, and geometry-node types
+#: are intentionally excluded.
+ALLOWED_SHADER_NODE_TYPES: frozenset[str] = frozenset({
+    # Input
+    "ShaderNodeAmbientOcclusion",
+    "ShaderNodeAttribute",
+    "ShaderNodeBevel",
+    "ShaderNodeCameraData",
+    "ShaderNodeFresnel",
+    "ShaderNodeHairInfo",
+    "ShaderNodeLayerWeight",
+    "ShaderNodeLightPath",
+    "ShaderNodeObjectInfo",
+    "ShaderNodeParticleInfo",
+    "ShaderNodePointInfo",
+    "ShaderNodeRGB",
+    "ShaderNodeTangent",
+    "ShaderNodeTexCoord",
+    "ShaderNodeUVAlongStroke",
+    "ShaderNodeUVMap",
+    "ShaderNodeValue",
+    "ShaderNodeVertexColor",
+    "ShaderNodeVolumeInfo",
+    "ShaderNodeWireframe",
+    # Output
+    "ShaderNodeOutputAOV",
+    "ShaderNodeOutputLight",
+    "ShaderNodeOutputLineStyle",
+    "ShaderNodeOutputMaterial",
+    "ShaderNodeOutputWorld",
+    # Shader
+    "ShaderNodeAddShader",
+    "ShaderNodeBackground",
+    "ShaderNodeBsdfAnisotropic",
+    "ShaderNodeBsdfDiffuse",
+    "ShaderNodeBsdfGlass",
+    "ShaderNodeBsdfGlossy",
+    "ShaderNodeBsdfHair",
+    "ShaderNodeBsdfHairPrincipled",
+    "ShaderNodeBsdfPrincipled",
+    "ShaderNodeBsdfRefraction",
+    "ShaderNodeBsdfSheen",
+    "ShaderNodeBsdfToon",
+    "ShaderNodeBsdfTranslucent",
+    "ShaderNodeBsdfTransparent",
+    "ShaderNodeBsdfVelvet",
+    "ShaderNodeEmission",
+    "ShaderNodeHoldout",
+    "ShaderNodeMixShader",
+    "ShaderNodeSubsurfaceScattering",
+    "ShaderNodeVolumePrincipled",
+    "ShaderNodeVolumeScatter",
+    "ShaderNodeVolumeAbsorption",
+    # Texture
+    "ShaderNodeTexBrick",
+    "ShaderNodeTexChecker",
+    "ShaderNodeTexEnvironment",
+    "ShaderNodeTexGradient",
+    "ShaderNodeTexIES",
+    "ShaderNodeTexImage",
+    "ShaderNodeTexMagic",
+    "ShaderNodeTexMusgrave",
+    "ShaderNodeTexNoise",
+    "ShaderNodeTexPointDensity",
+    "ShaderNodeTexSky",
+    "ShaderNodeTexVoronoi",
+    "ShaderNodeTexWave",
+    "ShaderNodeTexWhiteNoise",
+    # Color
+    "ShaderNodeBrightContrast",
+    "ShaderNodeGamma",
+    "ShaderNodeHueSaturation",
+    "ShaderNodeInvert",
+    "ShaderNodeLightFalloff",
+    "ShaderNodeMix",
+    "ShaderNodeMixRGB",
+    "ShaderNodeRGBCurve",
+    # Vector
+    "ShaderNodeBump",
+    "ShaderNodeDisplacement",
+    "ShaderNodeMapping",
+    "ShaderNodeNormal",
+    "ShaderNodeNormalMap",
+    "ShaderNodeVectorCurve",
+    "ShaderNodeVectorDisplacement",
+    "ShaderNodeVectorMath",
+    "ShaderNodeVectorRotate",
+    "ShaderNodeVectorTransform",
+    # Converter
+    "ShaderNodeBlackbody",
+    "ShaderNodeClamp",
+    "ShaderNodeCombineColor",
+    "ShaderNodeCombineHSV",
+    "ShaderNodeCombineRGB",
+    "ShaderNodeCombineXYZ",
+    "ShaderNodeFloatCurve",
+    "ShaderNodeMapRange",
+    "ShaderNodeMath",
+    "ShaderNodeRGBToBW",
+    "ShaderNodeSeparateColor",
+    "ShaderNodeSeparateHSV",
+    "ShaderNodeSeparateRGB",
+    "ShaderNodeSeparateXYZ",
+    "ShaderNodeShaderToRGB",
+    "ShaderNodeValToRGB",
+    "ShaderNodeWavelength",
+    # Layout / utility
+    "ShaderNodeFrame",
+    "NodeReroute",
+    "ShaderNodeGroup",
+    "NodeGroupInput",
+    "NodeGroupOutput",
+})
+
 
 def register(mcp) -> None:
     """Register all shader node tools onto the FastMCP instance."""
@@ -58,6 +174,11 @@ def register(mcp) -> None:
                 raise ValueError("material_name must not be empty")
             if not node_type:
                 raise ValueError("node_type must not be empty")
+            if node_type not in ALLOWED_SHADER_NODE_TYPES:
+                raise ValueError(
+                    f"node_type {node_type!r} is not allowed. "
+                    f"Allowed types: {', '.join(sorted(ALLOWED_SHADER_NODE_TYPES))}"
+                )
             if len(location) != 2:
                 raise ValueError("location must have 2 components [x, y]")
             mat = bpy.data.materials.get(material_name)

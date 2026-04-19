@@ -1368,3 +1368,30 @@ async def test_delete_keyframe_disallowed_data_path(mock_bridge: MagicMock) -> N
                         frame=1)
     assert is_error(result)
     assert 'not allowed' in result['error'].lower()
+
+
+# ---------------------------------------------------------------------------
+# shader node type allowlist
+# ---------------------------------------------------------------------------
+
+
+async def test_add_shader_node_disallowed_type(mock_bridge: MagicMock) -> None:
+    from blender_addon.tools import nodes
+
+    mcp = make_mcp()
+    nodes.register(mcp)
+    result = await call(mcp, 'add_shader_node',
+                        material_name='Mat', node_type='InternalNodeType')
+    assert is_error(result)
+    assert 'not allowed' in result['error'].lower()
+
+
+async def test_add_shader_node_compositor_type_disallowed(mock_bridge: MagicMock) -> None:
+    from blender_addon.tools import nodes
+
+    mcp = make_mcp()
+    nodes.register(mcp)
+    result = await call(mcp, 'add_shader_node',
+                        material_name='Mat', node_type='CompositorNodeBlur')
+    assert is_error(result)
+    assert 'not allowed' in result['error'].lower()
