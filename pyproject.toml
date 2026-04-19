@@ -30,6 +30,7 @@ markers = ["e2e: end-to-end tests requiring a running Blender instance"]
 [tool.ruff]
 target-version = "py311"
 line-length = 100
+exclude = ["audit", "scripts"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]

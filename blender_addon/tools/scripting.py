@@ -59,6 +59,7 @@ def register(mcp) -> None:
             from blender_addon.tools._sandbox import (  # noqa: PLC0415
                 make_restricted_namespace,
                 make_unrestricted_namespace,
+                validate_restricted_code,
             )
 
             mathutils_mod = __import__("mathutils")
@@ -66,11 +67,12 @@ def register(mcp) -> None:
             if unrestricted:
                 namespace = make_unrestricted_namespace(bpy, mathutils_mod)
             else:
+                validate_restricted_code(code)  # raises RestrictedCodeError on violation
                 namespace = make_restricted_namespace(bpy, mathutils_mod)
 
             mode = "unrestricted" if unrestricted else "restricted"
             try:
-                exec(code, namespace)  # noqa: S102
+                exec(code, namespace)  # noqa: S102  # gated by validate_restricted_code() in restricted mode
                 return {"result": namespace.get("__result__"), "status": "ok", "mode": mode}
             except Exception as exc:
                 return {
