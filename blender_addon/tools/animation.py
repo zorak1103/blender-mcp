@@ -12,6 +12,38 @@ from ._helpers import run_tool
 
 logger = logging.getLogger(__name__)
 
+#: Data paths that callers may keyframe. Restricts the RNA path surface to
+#: standard object transform and visibility properties, preventing accidental
+#: or malicious animation of modifier internals or other arbitrary attributes.
+ALLOWED_DATA_PATHS: frozenset[str] = frozenset({
+    "color",
+    "delta_location",
+    "delta_rotation_euler",
+    "delta_rotation_quaternion",
+    "delta_scale",
+    "hide_render",
+    "hide_viewport",
+    "location",
+    "rotation_axis_angle",
+    "rotation_euler",
+    "rotation_quaternion",
+    "scale",
+})
+
+
+def _validate_data_path(data_path: str) -> None:
+    """Raise ValueError if data_path is not in ALLOWED_DATA_PATHS.
+
+    Indexed access such as ``location[0]`` is accepted by stripping the
+    ``[...]`` suffix before checking the base property name.
+    """
+    base = data_path.split("[")[0].strip()
+    if base not in ALLOWED_DATA_PATHS:
+        raise ValueError(
+            f"data_path {data_path!r} is not allowed. "
+            f"Allowed paths: {', '.join(sorted(ALLOWED_DATA_PATHS))}"
+        )
+
 
 def register(mcp) -> None:
     """Register all animation tools onto the FastMCP instance."""
@@ -65,7 +97,11 @@ def register(mcp) -> None:
     ) -> str:
         """Insert a keyframe on an object's data path at the given frame.
 
-        data_path examples: 'location', 'rotation_euler', 'scale'.
+        data_path must be one of the allowed transform/visibility properties:
+        location, rotation_euler, rotation_quaternion, rotation_axis_angle,
+        scale, hide_render, hide_viewport, color, delta_location, delta_scale,
+        delta_rotation_euler, delta_rotation_quaternion.
+        Indexed access like 'location[0]' is also accepted.
         index=-1 inserts keyframes on all channels of the property.
         """
 
@@ -74,6 +110,7 @@ def register(mcp) -> None:
                 raise ValueError("object_name must not be empty")
             if not data_path:
                 raise ValueError("data_path must not be empty")
+            _validate_data_path(data_path)
             if frame < 0:
                 raise ValueError("frame must be >= 0")
             obj = bpy.data.objects.get(object_name)
@@ -94,7 +131,9 @@ def register(mcp) -> None:
     ) -> str:
         """Delete a keyframe from an object's data path at the given frame.
 
-        Returns success=true if a keyframe was found and removed, false otherwise.
+        data_path must be one of the allowed transform/visibility properties
+        (same set as insert_keyframe). Returns success=true if a keyframe was
+        found and removed, false otherwise.
         """
 
         def _do():
@@ -102,6 +141,7 @@ def register(mcp) -> None:
                 raise ValueError("object_name must not be empty")
             if not data_path:
                 raise ValueError("data_path must not be empty")
+            _validate_data_path(data_path)
             if frame < 0:
                 raise ValueError("frame must be >= 0")
             obj = bpy.data.objects.get(object_name)
