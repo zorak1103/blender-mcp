@@ -1306,3 +1306,65 @@ async def test_add_modifier_extreme_levels_clamped(
                         object_name='Cube', modifier_type='SUBSURF',
                         settings={'levels': 2_000_000_000})
     assert 'error' not in result
+
+
+# ---------------------------------------------------------------------------
+# keyframe data_path allowlist
+# ---------------------------------------------------------------------------
+
+
+async def test_insert_keyframe_disallowed_data_path(mock_bridge: MagicMock) -> None:
+    from blender_addon.tools import animation
+
+    mcp = make_mcp()
+    animation.register(mcp)
+    result = await call(mcp, 'insert_keyframe',
+                        object_name='Cube',
+                        data_path='modifiers["Subdivision"].levels',
+                        frame=1)
+    assert is_error(result)
+    assert 'not allowed' in result['error'].lower()
+
+
+async def test_insert_keyframe_indexed_path_accepted(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    obj = MagicMock()
+    mock_bpy.data.objects.get.return_value = obj
+
+    from blender_addon.tools import animation
+
+    mcp = make_mcp()
+    animation.register(mcp)
+    result = await call(mcp, 'insert_keyframe',
+                        object_name='Cube', data_path='location[0]', frame=1)
+    assert 'error' not in result
+
+
+async def test_insert_keyframe_allowed_paths_accepted(
+    mock_bridge: MagicMock, mock_bpy: MagicMock
+) -> None:
+    obj = MagicMock()
+    mock_bpy.data.objects.get.return_value = obj
+
+    from blender_addon.tools import animation
+
+    for path in ('location', 'rotation_euler', 'scale', 'hide_render', 'hide_viewport'):
+        mcp = make_mcp()
+        animation.register(mcp)
+        result = await call(mcp, 'insert_keyframe',
+                            object_name='Cube', data_path=path, frame=1)
+        assert 'error' not in result, f'Allowed path {path!r} was rejected: {result}'
+
+
+async def test_delete_keyframe_disallowed_data_path(mock_bridge: MagicMock) -> None:
+    from blender_addon.tools import animation
+
+    mcp = make_mcp()
+    animation.register(mcp)
+    result = await call(mcp, 'delete_keyframe',
+                        object_name='Cube',
+                        data_path='modifiers["X"].levels',
+                        frame=1)
+    assert is_error(result)
+    assert 'not allowed' in result['error'].lower()
