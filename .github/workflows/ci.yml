@@ -24,7 +24,10 @@ jobs:
         run: uv pip install ".[test]" ruff mypy --system
 
       - name: Scan dependencies for CVEs
-        run: osv-scanner scan source --lockfile uv.lock
+        uses: google/osv-scanner-action@c51854704019a247608d928f370c98740469d4b5 # v2.3.5
+        with:
+          scan-args: |-
+            --lockfile=uv.lock
 
       - name: Lint (ruff)
         run: ruff check .
