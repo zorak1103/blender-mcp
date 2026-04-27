@@ -26,10 +26,10 @@ jobs:
         run: python scripts/patch_version.py "${GITHUB_REF_NAME}"
 
       - name: Package addon zip
-        run: zip -r blender_mcp_addon.zip blender_addon/
+        run: zip -r "blender_mcp_addon-${GITHUB_REF_NAME}.zip" blender_addon/
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
         with:
-          files: blender_mcp_addon.zip
+          files: "blender_mcp_addon-${{ github.ref_name }}.zip"
           generate_release_notes: true

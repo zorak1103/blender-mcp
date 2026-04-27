@@ -64,7 +64,7 @@ Then run:
 
 ### Option A — Download a release (recommended)
 
-Download `blender_mcp_addon.zip` from the [latest GitHub Release](https://github.com/zorak1103/blender-mcp/releases/latest) and install it directly in Blender (see [Installing and Activating in Blender](#installing-and-activating-in-blender)).
+Download `blender_mcp_addon-vX.Y.Z.zip` from the [latest GitHub Release](https://github.com/zorak1103/blender-mcp/releases/latest) and install it directly in Blender (see [Installing and Activating in Blender](#installing-and-activating-in-blender)).
 
 ### Option B — Clone the repository
 
