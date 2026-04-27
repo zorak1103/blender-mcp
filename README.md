@@ -129,14 +129,35 @@ In **Edit → Preferences → Add-ons → Blender MCP Server**, set the **Port**
 The add-on exposes a Streamable HTTP endpoint at `http://localhost:8400/mcp`. Any MCP client
 that supports HTTP transport can connect directly — no proxy, no extra Python dependencies.
 
-**Claude Code** — the `.mcp.json` at the repository root is already configured. No additional setup is needed when working inside this repository. To register globally (outside this repo):
+The MCP endpoint requires a Bearer token that the add-on generates on first start and writes to
+`~/.config/blender-mcp/token`. Export it as an environment variable before launching your client:
 
 ```bash
-claude mcp add --transport http --scope user blender-mcp http://localhost:8400/mcp
+# bash / Git Bash / WSL (add to ~/.bashrc for persistence)
+export BLENDER_MCP_TOKEN="$(cat ~/.config/blender-mcp/token)"
+```
+
+```powershell
+# PowerShell — set permanently in the user environment
+[Environment]::SetEnvironmentVariable(
+  "BLENDER_MCP_TOKEN",
+  (Get-Content "$HOME\.config\blender-mcp\token"),
+  "User")
+```
+
+**Claude Code** — the `.mcp.json` at the repository root is already configured with the
+`Authorization: Bearer ${BLENDER_MCP_TOKEN}` header. Set the env var above, then start
+(or restart) Claude Code — no further setup is needed inside this repository.
+To register globally (outside this repo):
+
+```bash
+claude mcp add --transport http --scope user \
+  --header "Authorization: Bearer \${BLENDER_MCP_TOKEN}" \
+  blender-mcp http://localhost:8400/mcp
 ```
 
 **Other clients** (Cline, OpenCode, etc.): point the HTTP/SSE transport URL to
-`http://localhost:8400/mcp`.
+`http://localhost:8400/mcp` and add the `Authorization: Bearer <token>` header.
 
 > **Note for Claude Code users:** MCP servers from `.mcp.json` require either `"enableAllProjectMcpServers": true` in `.claude/settings.local.json`, or explicit approval via the dialog that appears on first launch. If the tools are not available and no dialog appeared, add `"enableAllProjectMcpServers": true` to `.claude/settings.local.json` and restart Claude Code.
 
@@ -164,9 +185,11 @@ Add the following to `~/.claude/settings.json` (global) or `.claude/settings.jso
 
 ```bash
 # HTTP check (works for both Option A and B):
+export BLENDER_MCP_TOKEN="$(cat ~/.config/blender-mcp/token)"
 curl -s -X POST http://localhost:8400/mcp \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
+  -H "Authorization: Bearer $BLENDER_MCP_TOKEN" \
   -d '{"jsonrpc":"2.0","method":"initialize","id":1,"params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0"}}}'
 ```
 
@@ -192,6 +215,16 @@ Claude Code loads servers from `.mcp.json` only when `enableAllProjectMcpServers
 ```
 
 Then restart Claude Code. The blender-mcp tools should appear immediately.
+
+### `curl http://localhost:8400/mcp` returns 401 Unauthorized
+
+The MCP endpoint requires a Bearer token. Make sure `BLENDER_MCP_TOKEN` is set and matches the content of `~/.config/blender-mcp/token` (written by the add-on on first start):
+
+```bash
+export BLENDER_MCP_TOKEN="$(cat ~/.config/blender-mcp/token)"
+```
+
+Then restart Claude Code (or whichever client you are using) so it picks up the new environment variable.
 
 ### `curl http://localhost:8400/mcp` returns "Not Acceptable"
 

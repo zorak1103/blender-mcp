@@ -42,7 +42,18 @@ After installation, the user must enable the add-on in Blender:
 **Edit → Preferences → Add-ons → search "Blender MCP Server" → enable checkbox.**
 This step requires user interaction and cannot be automated from the command line.
 
-### 0b — Install system Python dependencies (stdio fallback only)
+### 0b — Export the shared-secret token (HTTP path)
+
+The add-on generates a Bearer token on first start and writes it to `~/.config/blender-mcp/token`.
+Export it before launching Claude Code:
+
+```bash
+export BLENDER_MCP_TOKEN="$(cat ~/.config/blender-mcp/token)"
+```
+
+If the file does not exist yet, start Blender with the add-on enabled first — the token is created automatically.
+
+### 0c — Install system Python dependencies (stdio fallback only)
 
 Required only if using `launcher.py`. Skip if connecting via HTTP (recommended).
 
@@ -53,9 +64,11 @@ pip install httpx "mcp[cli]"
 ## Step 1 — Verify Blender is reachable
 
 ```bash
+export BLENDER_MCP_TOKEN="$(cat ~/.config/blender-mcp/token)"
 curl -s -X POST http://localhost:8400/mcp \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
+  -H "Authorization: Bearer $BLENDER_MCP_TOKEN" \
   -d '{"jsonrpc":"2.0","method":"initialize","id":1,"params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"probe","version":"0"}}}'
 ```
 
@@ -78,13 +91,18 @@ The `.mcp.json` file in this repository already contains the correct entry:
   "mcpServers": {
     "blender-mcp": {
       "type": "http",
-      "url": "http://localhost:8400/mcp"
+      "url": "http://localhost:8400/mcp",
+      "headers": {
+        "Authorization": "Bearer ${BLENDER_MCP_TOKEN}"
+      }
     }
   }
 }
 ```
 
-If you are registering globally, merge the same `"blender-mcp"` entry into the `"mcpServers"` object in `~/.claude/settings.json` (create the object if it does not exist).
+`${BLENDER_MCP_TOKEN}` is expanded from the environment at Claude Code startup — make sure you set it first (Step 0b).
+
+If you are registering globally, merge the same `"blender-mcp"` entry (including the `"headers"` block) into the `"mcpServers"` object in `~/.claude/settings.json` (create the object if it does not exist).
 
 ## Step 3 — Confirm registration
 
